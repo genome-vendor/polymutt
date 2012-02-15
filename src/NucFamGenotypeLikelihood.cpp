@@ -1532,9 +1532,9 @@ void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
   String INFO;
 
   if(nFam==1 && ped->families[0]->isNuclear())
-   INFO.printf("NS=%d;PS=%.1f;DP=%d;DQ=%.5f", numSampWithData, percSampWithData*100, totalDepth, denovoLR);
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, denovoLR);
   else
-   INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f;DQ=%.5f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer(), denovoLR);
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer(), denovoLR);
 
   String FORMAT = "GT:GQ:DP"; if(par->gl_off==false) FORMAT+=":GL";
   char bases[5]  = {'0', 'A', 'C', 'G', 'T'};

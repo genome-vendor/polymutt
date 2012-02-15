@@ -63,6 +63,7 @@ int main(int argc, char * argv[])
   String pedFile, datFile, glfListFile;
   String vcfFile = "variantCalls.vcf";
   String positionfile;
+  String chrs2process;
   double theta = 0.001;
   double tstv_ratio = 2.0;
   double precision = 0.0001;
@@ -85,7 +86,7 @@ int main(int argc, char * argv[])
     LONG_PARAMETER_GROUP("Scaled mutation rate")
     LONG_DOUBLEPARAMETER("theta", &theta)
     LONG_PARAMETER_GROUP("Prior of ts/tv ratio")
-    LONG_DOUBLEPARAMETER("tstv", &tstv_ratio)
+    LONG_DOUBLEPARAMETER("poly_tstv", &tstv_ratio)
   LONG_PARAMETER_GROUP("de novo mutation")
       LONG_PARAMETER("denovo", &denovo)
       LONG_DOUBLEPARAMETER("rate_denovo", &denovo_mut_rate)
@@ -95,7 +96,9 @@ int main(int argc, char * argv[])
     LONG_DOUBLEPARAMETER("prec", &precision)
   LONG_PARAMETER_GROUP("Multiple threading")
     LONG_INTPARAMETER("nthreads", &num_threads)
-    LONG_PARAMETER_GROUP("Output")
+  LONG_PARAMETER_GROUP("Chromosomes to process")
+    LONG_STRINGPARAMETER("chr2process", &chrs2process)
+  LONG_PARAMETER_GROUP("Output")
     LONG_STRINGPARAMETER("vcf", &vcfFile)
     LONG_PARAMETER("gl_off", &gl_off)
     END_LONG_PARAMETERS();
@@ -138,6 +141,7 @@ int main(int argc, char * argv[])
   par.denovo = denovo;
   par.denovoLR = denovoLR;
   par.gl_off = gl_off;
+  par.chrs2process = chrs2process;
 
   if(denovo && denovoLR<0) error("denovo_min_LLR can only be greater than 0 !\n");
 
@@ -214,15 +218,23 @@ int main(int argc, char * argv[])
   int actuaBases = 0;
 
   time_t t; time(&t);
+
+  std::map<String, int> chrs2process_map;
+  StringArray chrs;
+  chrs.AddTokens(chrs2process, ',');
+  for(int cidx=0; cidx<chrs.Length(); cidx++)
+   chrs2process_map[chrs[cidx]]++;
   
   printf("Analysis started on %s\n", ctime(&t));
   Matrix pen; 
   int maxidx = 0;
   while(pedGLF.Move2NextSection())
     {
+     if(chrs2process_map.size()>0 && chrs2process_map[pedGLF.GetNonNULLglf()->label]<1) continue;
+
       homoRef = transitions = transversions = otherPolymorphism = tstvs1Cnt = tstvs2Cnt = tvs1tvs2Cnt = nocall = actuaBases = 0; for(int k=0; k<5; k++) refBaseCounts[k]=0; 
       cnt=cntSec=totalEntryCnt = 0; minTotalDepthFilter = maxTotalDepthFilter = maxAvgDepthFilter = minAvgDepthFilter = minMapQualFilter = minAvgMapQualFilter = 0;
-
+    
       while(pedGLF.Move2NextBaseEntry())
 	{
 	  for(int r=0; r<7; r++)
@@ -237,8 +249,8 @@ int main(int argc, char * argv[])
 	      if(positionMap[chrPos]==0) continue;
 	    }
 	  int refBase  = pedGLF.GetRefBase();
+	  if(refBase!=1 && refBase!=2 && refBase!=3 && refBase!=4) continue;
 	  refBaseCounts[refBase]++;
-	  if(refBase=='0') continue;
 
 	  famlk[0].CalcReadStats();
 

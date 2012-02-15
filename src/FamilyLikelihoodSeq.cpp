@@ -162,7 +162,8 @@ void FamilyLikelihoodSeq::CalcPostProb_SingleExtendedPed_BA(int i, double freq)
       }
       best = GetBestGenoIdx(lk11, lk12, lk22);
       bestGenoIdx[i][j] = best; 
-      bestGenoLabel[i][j] = GetBestGenoLabel(best);
+      //bestGenoLabel[i][j] = GetBestGenoLabel(best);
+      bestGenoLabel[i][j] = GetBestGenoLabel_vcfv4(best);
       dosage[i][j] = CalcDosage(i,j);
     }
 }

@@ -1,5 +1,6 @@
 #ifndef __CMDLINEPAR_H__
 #define __CMDLINEPAR_H__
+#include "StringArray.h"
 
 class CmdLinePar
 {
@@ -19,6 +20,7 @@ double denovo_tstv_ratio;
 double denovoLR;
 bool output_denovo_only;
 bool gl_off;
+String chrs2process;
 
 public:
 CmdLinePar() {
@@ -37,6 +39,7 @@ CmdLinePar() {
   denovoLR = 0;
   output_denovo_only = false;
   gl_off = false;
+  chrs2process = "";
  }
 };
         

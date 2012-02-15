@@ -605,7 +605,7 @@ void FamilyLikelihoodES::InitializeStates(double freq){}
 
 void FamilyLikelihoodES::SetFounderPriors(double freq)
 {
-  if(allele1>4 || allele2<1 || allele2>4 || allele2<1) 
+  if(allele1>4 || allele1<1 || allele2>4 || allele2<1) 
     error("Alleles are not set: %d %d\n", allele1, allele2);
   priors.resize(10);
   for(int i=0; i<priors.size(); i++) priors[i] = 0.0;  
@@ -616,7 +616,7 @@ void FamilyLikelihoodES::SetFounderPriors(double freq)
 
 void FamilyLikelihoodES::SetFounderPriors_BA(double freq)
 {
-  if(allele1>4 || allele2<1 || allele2>4 || allele2<1) 
+  if(allele1>4 || allele1<1 || allele2>4 || allele2<1) 
     error("Alleles are not set: %d %d\n", allele1, allele2);
   priors.resize(3);
   priors[0]  = freq*freq;
