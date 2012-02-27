@@ -37,7 +37,7 @@ void ES_Peeling::SetFamily(Family *famptr)
   famSize = family->count;
   parents = new IntArray[famSize];
   offspring = new IntArray[famSize];
-  spouses = new IntArray[famSize];
+  spouses = new IntArray[famSize];  
 }
 
 void ES_Peeling::SetFamily(int fam){famIdx = fam;}
@@ -554,6 +554,10 @@ FamilyLikelihoodES::~FamilyLikelihoodES()
 if(transmission!=NULL) FreeTransmissionMatrix();
 if(transmission_denovo!=NULL) FreeTransmissionMatrix_denovo();
 if(transmission_BA!=NULL) FreeTransmissionMatrix_BA();
+if(transmission_BA_CHRX_2Female!=NULL) FreeTransmissionMatrix_BA_CHRX_2Female();
+if(transmission_BA_CHRX_2Male!=NULL) FreeTransmissionMatrix_BA_CHRX_2Male();
+if(transmission_BA_CHRY!=NULL) FreeTransmissionMatrix_BA_CHRY();
+if(transmission_BA_MITO!=NULL) FreeTransmissionMatrix_BA_MITO();
 }
 
 void FamilyLikelihoodES::SetPedigree(Pedigree *pedptr)
@@ -568,6 +572,20 @@ void FamilyLikelihoodES::SetFamily(Family *famptr)
   nFounders = family->founders;
   penetrances.Dimension(famSize, 10);
   penetrances.Zero();
+
+  sexes.resize(famSize);
+  for(int i=0; i<famSize; i++)
+  {
+   Person *p = ped->persons[family->path[i]];
+   sexes[i] = p->sex;
+  }
+
+  priors.resize(nFounders);
+  for(int i=0; i<priors.size(); i++)
+  {
+   priors[i].resize(10);
+   for(int j=0; j<priors[i].size(); j++) priors[i][j] = 0.0;
+  }
 }
 
 void FamilyLikelihoodES::PreparePeeling()
@@ -605,24 +623,48 @@ void FamilyLikelihoodES::InitializeStates(double freq){}
 
 void FamilyLikelihoodES::SetFounderPriors(double freq)
 {
-  if(allele1>4 || allele1<1 || allele2>4 || allele2<1) 
+  if(allele1>4 || allele2<1 || allele2>4 || allele2<1) 
     error("Alleles are not set: %d %d\n", allele1, allele2);
-  priors.resize(10);
-  for(int i=0; i<priors.size(); i++) priors[i] = 0.0;  
-  priors[genoIdx[0]]  = freq*freq;
-  priors[genoIdx[1]] = 2*freq*(1-freq);
-  priors[genoIdx[2]] = (1-freq)*(1-freq);
+
+  for(int i=0; i<priors.size(); i++)
+   {
+    priors[i][genoIdx[0]]  = freq*freq;
+    priors[i][genoIdx[1]] = 2*freq*(1-freq);
+    priors[i][genoIdx[2]] = (1-freq)*(1-freq);
+
+    if(isChrX)
+     if(sexes[i]==MALE){ priors[i][genoIdx[0]]=freq; priors[i][genoIdx[1]]=0; priors[i][genoIdx[2]]=1-freq;}
+
+   if(isChrY)
+     if(sexes[i]==MALE) { priors[i][genoIdx[0]]=freq; priors[i][genoIdx[1]]=0; priors[i][genoIdx[2]]=1-freq;}
+     else {priors[i][genoIdx[0]]=1; priors[i][genoIdx[1]]=1; priors[i][genoIdx[2]]=1;}
+
+   if(isMT) {priors[i][genoIdx[0]] = freq; priors[i][genoIdx[1]] = 0; priors[i][genoIdx[2]] = 1-freq; }
+   }
 }
 
 void FamilyLikelihoodES::SetFounderPriors_BA(double freq)
 {
-  if(allele1>4 || allele1<1 || allele2>4 || allele2<1) 
+  if(allele1>4 || allele2<1 || allele2>4 || allele2<1) 
     error("Alleles are not set: %d %d\n", allele1, allele2);
-  priors.resize(3);
-  priors[0]  = freq*freq;
-  priors[1] = 2*freq*(1-freq);
-  priors[2] = (1-freq)*(1-freq);  
+
+  for(int i=0; i<priors.size(); i++)
+   {
+    priors[i][0]  = freq*freq;
+    priors[i][1] = 2*freq*(1-freq);
+    priors[i][2] = (1-freq)*(1-freq);
+
+    if(isChrX)
+     if(sexes[i]==MALE){ priors[i][0]=freq; priors[i][1]=0; priors[i][2]=1-freq;}
+
+   if(isChrY)
+     if(sexes[i]==MALE) { priors[i][0]=freq; priors[i][1]=0; priors[i][2]=1-freq;}
+     else {priors[i][0]=1; priors[i][1]=1; priors[i][2]=1;}
+
+   if(isMT) {priors[i][0] = freq; priors[i][1] = 0; priors[i][2] = 1-freq; }
+   }
 }
+
 
 void FamilyLikelihoodES::SetGenotypeMutationModel(GenotypeMutationModel* genoMutModel)
 {
@@ -635,6 +677,38 @@ void FamilyLikelihoodES::FreeTransmissionMatrix_BA()
     delete[] transmission_BA[i];
   delete[] transmission_BA;
   transmission_BA = NULL;
+}
+
+void FamilyLikelihoodES::FreeTransmissionMatrix_BA_CHRX_2Female()
+{
+  for(int i=0; i<3; i++)
+    delete[] transmission_BA_CHRX_2Female[i];
+  delete[] transmission_BA_CHRX_2Female;
+  transmission_BA_CHRX_2Female = NULL;
+}
+
+void FamilyLikelihoodES::FreeTransmissionMatrix_BA_CHRX_2Male()
+{
+  for(int i=0; i<3; i++)
+    delete[] transmission_BA_CHRX_2Male[i];
+  delete[] transmission_BA_CHRX_2Male;
+  transmission_BA_CHRX_2Male = NULL;
+}
+
+void FamilyLikelihoodES::FreeTransmissionMatrix_BA_CHRY()
+{
+  for(int i=0; i<3; i++)
+    delete[] transmission_BA_CHRY[i];
+  delete[] transmission_BA_CHRY;
+  transmission_BA_CHRY = NULL;
+}
+
+void FamilyLikelihoodES::FreeTransmissionMatrix_BA_MITO()
+{
+  for(int i=0; i<3; i++)
+    delete[] transmission_BA_MITO[i];
+  delete[] transmission_BA_MITO;
+  transmission_BA_MITO = NULL;
 }
 
 void FamilyLikelihoodES::FreeTransmissionMatrix()
@@ -735,6 +809,97 @@ void FamilyLikelihoodES::SetTransmissionMatrix_BA()
   transmission_BA[2][0][0] = 0.0;    transmission_BA[2][0][1] = 1.0;    transmission_BA[2][0][2] = 0.0;   
   transmission_BA[2][1][0] = 0.0;    transmission_BA[2][1][1] = 0.5;    transmission_BA[2][1][2] = 0.5;
   transmission_BA[2][2][0] = 0.0;    transmission_BA[2][2][1] = 0.0;    transmission_BA[2][2][2] = 1.0;
+}
+
+void FamilyLikelihoodES::SetTransmissionMatrix_BA_CHRX_2Female()
+{
+  if(transmission_BA_CHRX_2Female!=NULL) FreeTransmissionMatrix_BA_CHRX_2Female();
+  transmission_BA_CHRX_2Female = new vector<double>*[3]; 
+  for(int i=0; i<3; i++)
+    transmission_BA_CHRX_2Female[i] = new vector<double>[3];
+  
+  
+  for(int i=0; i<3; i++)
+    for(int j=0; j<3; j++)
+      transmission_BA_CHRX_2Female[i][j].resize(3);
+  
+  transmission_BA_CHRX_2Female[0][0][0] = 1.0;    transmission_BA_CHRX_2Female[0][0][1] = 0.0;    transmission_BA_CHRX_2Female[0][0][2] = 0.0;
+  transmission_BA_CHRX_2Female[0][1][0] = 0.5;    transmission_BA_CHRX_2Female[0][1][1] = 0.5;    transmission_BA_CHRX_2Female[0][1][2] = 0.0;
+  transmission_BA_CHRX_2Female[0][2][0] = 0.0;    transmission_BA_CHRX_2Female[0][2][1] = 1.0;    transmission_BA_CHRX_2Female[0][2][2] = 0.0;
+  transmission_BA_CHRX_2Female[1][0][0] = 0.0;    transmission_BA_CHRX_2Female[1][0][1] = 0.0;    transmission_BA_CHRX_2Female[1][0][2] = 0.0;   
+  transmission_BA_CHRX_2Female[1][1][0] = 0.0;    transmission_BA_CHRX_2Female[1][1][1] = 0.0;    transmission_BA_CHRX_2Female[1][1][2] = 0.0;   
+  transmission_BA_CHRX_2Female[1][2][0] = 0.0;    transmission_BA_CHRX_2Female[1][2][1] = 0.0;    transmission_BA_CHRX_2Female[1][2][2] = 0.0; 
+  transmission_BA_CHRX_2Female[2][0][0] = 0.0;    transmission_BA_CHRX_2Female[2][0][1] = 1.0;    transmission_BA_CHRX_2Female[2][0][2] = 0.0;   
+  transmission_BA_CHRX_2Female[2][1][0] = 0.0;    transmission_BA_CHRX_2Female[2][1][1] = 0.5;    transmission_BA_CHRX_2Female[2][1][2] = 0.5;
+  transmission_BA_CHRX_2Female[2][2][0] = 0.0;    transmission_BA_CHRX_2Female[2][2][1] = 0.0;    transmission_BA_CHRX_2Female[2][2][2] = 1.0;
+}
+
+void FamilyLikelihoodES::SetTransmissionMatrix_BA_CHRX_2Male()
+{
+  if(transmission_BA_CHRX_2Male!=NULL) FreeTransmissionMatrix_BA_CHRX_2Male();
+  transmission_BA_CHRX_2Male = new vector<double>*[3]; 
+  for(int i=0; i<3; i++)
+    transmission_BA_CHRX_2Male[i] = new vector<double>[3];
+  
+  
+  for(int i=0; i<3; i++)
+    for(int j=0; j<3; j++)
+      transmission_BA_CHRX_2Male[i][j].resize(3);
+
+  transmission_BA_CHRX_2Male[0][0][0] = 1.0;    transmission_BA_CHRX_2Male[0][0][1] = 0.0;    transmission_BA_CHRX_2Male[0][0][2] = 0.0;
+  transmission_BA_CHRX_2Male[0][1][0] = 0.5;    transmission_BA_CHRX_2Male[0][1][1] = 0.0;    transmission_BA_CHRX_2Male[0][1][2] = 0.5;
+  transmission_BA_CHRX_2Male[0][2][0] = 0.0;    transmission_BA_CHRX_2Male[0][2][1] = 0.0;    transmission_BA_CHRX_2Male[0][2][2] = 1.0;
+  transmission_BA_CHRX_2Male[1][0][0] = 0.0;    transmission_BA_CHRX_2Male[1][0][1] = 0.0;    transmission_BA_CHRX_2Male[1][0][2] = 0.0;
+  transmission_BA_CHRX_2Male[1][1][0] = 0.0;    transmission_BA_CHRX_2Male[1][1][1] = 0.0;    transmission_BA_CHRX_2Male[1][1][2] = 0.0;
+  transmission_BA_CHRX_2Male[1][2][0] = 0.0;    transmission_BA_CHRX_2Male[1][2][1] = 0.0;    transmission_BA_CHRX_2Male[1][2][2] = 0.0;
+  transmission_BA_CHRX_2Male[2][0][0] = 1.0;    transmission_BA_CHRX_2Male[2][0][1] = 0.0;    transmission_BA_CHRX_2Male[2][0][2] = 0.0;
+  transmission_BA_CHRX_2Male[2][1][0] = 0.5;    transmission_BA_CHRX_2Male[2][1][1] = 0.0;    transmission_BA_CHRX_2Male[2][1][2] = 0.5;
+  transmission_BA_CHRX_2Male[2][2][0] = 0.0;    transmission_BA_CHRX_2Male[2][2][1] = 0.0;    transmission_BA_CHRX_2Male[2][2][2] = 1.0;
+}
+
+void FamilyLikelihoodES::SetTransmissionMatrix_BA_CHRY()
+{
+  if(transmission_BA_CHRY!=NULL) FreeTransmissionMatrix_BA_CHRY();
+  transmission_BA_CHRY = new vector<double>*[3]; 
+  for(int i=0; i<3; i++)
+    transmission_BA_CHRY[i] = new vector<double>[3];
+  
+  
+  for(int i=0; i<3; i++)
+    for(int j=0; j<3; j++)
+      transmission_BA_CHRY[i][j].resize(3);
+  
+  transmission_BA_CHRY[0][0][0] = 1.0;    transmission_BA_CHRY[0][0][1] = 0.0;    transmission_BA_CHRY[0][0][2] = 0.0;
+  transmission_BA_CHRY[0][1][0] = 1.0;    transmission_BA_CHRY[0][1][1] = 0.0;    transmission_BA_CHRY[0][1][2] = 0.0;
+  transmission_BA_CHRY[0][2][0] = 1.0;    transmission_BA_CHRY[0][2][1] = 0.0;    transmission_BA_CHRY[0][2][2] = 0.0;
+  transmission_BA_CHRY[1][0][0] = 0.0;    transmission_BA_CHRY[1][0][1] = 0.0;    transmission_BA_CHRY[1][0][2] = 0.0;
+  transmission_BA_CHRY[1][1][0] = 0.0;    transmission_BA_CHRY[1][1][1] = 0.0;    transmission_BA_CHRY[1][1][2] = 0.0;
+  transmission_BA_CHRY[1][2][0] = 0.0;    transmission_BA_CHRY[1][2][1] = 0.0;    transmission_BA_CHRY[1][2][2] = 0.0;
+  transmission_BA_CHRY[2][0][0] = 0.0;    transmission_BA_CHRY[2][0][1] = 0.0;    transmission_BA_CHRY[2][0][2] = 1.0;
+  transmission_BA_CHRY[2][1][0] = 0.0;    transmission_BA_CHRY[2][1][1] = 0.0;    transmission_BA_CHRY[2][1][2] = 1.0;
+  transmission_BA_CHRY[2][2][0] = 0.0;    transmission_BA_CHRY[2][2][1] = 0.0;    transmission_BA_CHRY[2][2][2] = 1.0;
+}
+
+void FamilyLikelihoodES::SetTransmissionMatrix_BA_MITO()
+{
+  if(transmission_BA_MITO!=NULL) FreeTransmissionMatrix_BA_MITO();
+  transmission_BA_MITO = new vector<double>*[3]; 
+  for(int i=0; i<3; i++)
+    transmission_BA_MITO[i] = new vector<double>[3];
+  
+  
+  for(int i=0; i<3; i++)
+    for(int j=0; j<3; j++)
+      transmission_BA_MITO[i][j].resize(3);
+  transmission_BA_MITO[0][0][0] = 1.0;    transmission_BA_MITO[0][0][1] = 0.0;    transmission_BA_MITO[0][0][2] = 0.0;
+  transmission_BA_MITO[0][1][0] = 0.0;    transmission_BA_MITO[0][1][1] = 0.0;    transmission_BA_MITO[0][1][2] = 0.0;
+  transmission_BA_MITO[0][2][0] = 0.0;    transmission_BA_MITO[0][2][1] = 0.0;    transmission_BA_MITO[0][2][2] = 1.0;
+  transmission_BA_MITO[1][0][0] = 0.0;    transmission_BA_MITO[1][0][1] = 0.0;    transmission_BA_MITO[1][0][2] = 0.0;
+  transmission_BA_MITO[1][1][0] = 0.0;    transmission_BA_MITO[1][1][1] = 0.0;    transmission_BA_MITO[1][1][2] = 0.0;
+  transmission_BA_MITO[1][2][0] = 0.0;    transmission_BA_MITO[1][2][1] = 0.0;    transmission_BA_MITO[1][2][2] = 0.0;
+  transmission_BA_MITO[2][0][0] = 1.0;    transmission_BA_MITO[2][0][1] = 0.0;    transmission_BA_MITO[2][0][2] = 0.0;
+  transmission_BA_MITO[2][1][0] = 0.0;    transmission_BA_MITO[2][1][1] = 0.0;    transmission_BA_MITO[2][1][2] = 0.0;
+  transmission_BA_MITO[2][2][0] = 0.0;    transmission_BA_MITO[2][2][1] = 0.0;    transmission_BA_MITO[2][2][2] = 1.0;
 }
 
 void FamilyLikelihoodES::PrintTransmissionMatrix()
@@ -863,6 +1028,25 @@ double FamilyLikelihoodES::CalculateLikelihood_denovo()
   return(lk);
 }
 
+double FamilyLikelihoodES::GetTransmissionProb_BA(int i, int j, int k, int idx)
+{
+        double transmit;
+
+	if(isChrX)
+         if(sexes[idx]==MALE) transmit = transmission_BA_CHRX_2Male[i][j][k];
+         else transmit = transmission_BA_CHRX_2Female[i][j][k];
+
+	if(isChrY)
+	 if(sexes[idx]==MALE) transmit = transmission_BA_CHRY[i][j][k];
+	 else transmit = 1.0;
+
+	if(isMT)
+	 transmit = transmission_BA_MITO[i][j][k];
+
+	return(transmit);
+}
+
+
 void FamilyLikelihoodES::peelOffspring2Parents(int idx)
 {
   int offspring = es.from[idx].first;
@@ -901,6 +1085,7 @@ void FamilyLikelihoodES::peelOffspring2Parents_BA(int idx)
     SetMarriagePartials(es.to[idx]);
   
   double partial_lk_sum = 0;
+  double transmit = 0;
   
   for(int i=0; i<3; i++)
     for(int j=0; j<3; j++)
@@ -908,7 +1093,8 @@ void FamilyLikelihoodES::peelOffspring2Parents_BA(int idx)
 	partial_lk_sum = 0;
 	for(int k=0; k<3; k++)
 	  {
-	    partial_lk_sum += transmission_BA[i][j][k]*partials[offspring][k];
+	    transmit = GetTransmissionProb_BA(i, j, k, offspring);
+	    partial_lk_sum += transmit*partials[offspring][k];
 	  }
 	marriage_partials[es.to[idx]][i][j] *= partial_lk_sum;
       }
@@ -1052,7 +1238,7 @@ void FamilyLikelihoodES::peelParents2Offspring_BA(int idx)
   double partial_lk_sum = 0.0;
   map<pair<int, int>, vector<vector<double> > >::iterator it;
   it = marriage_partials.find(es.from[idx]);
-  
+
   for(int k=0; k<3; k++)
     {
       partial_lk_sum = 0.0;
@@ -1060,12 +1246,12 @@ void FamilyLikelihoodES::peelParents2Offspring_BA(int idx)
       if(it==marriage_partials.end())
 	for(int i=0; i<3; i++)
 	  for(int j=0; j<3; j++)
-	    partial_lk_sum += partials[fa][i] * partials[mo][j] * transmission_BA[i][j][k];
+	    partial_lk_sum += partials[fa][i] * partials[mo][j] * GetTransmissionProb_BA(i, j, k, offspring);
       
       else
 	for(int i=0; i<3; i++)
 	  for(int j=0; j<3; j++)
-	    partial_lk_sum += partials[fa][i] * marriage_partials[es.from[idx]][i][j] * partials[mo][j] * transmission_BA[i][j][k];  
+	    partial_lk_sum += partials[fa][i] * marriage_partials[es.from[idx]][i][j] * partials[mo][j] * GetTransmissionProb_BA(i, j, k, offspring);  
       
       partials[offspring][k] *= partial_lk_sum;
       
@@ -1226,7 +1412,7 @@ void FamilyLikelihoodES::InitializePartials()
     {
      if(ped->persons[family->path[i]]->isFounder())
       for(int j=0; j<10; j++)
-        partials[i][j] = priors[j]*penetrances[i][j];
+        partials[i][j] = priors[i][j]*penetrances[i][j];
      else
       for(int j=0; j<10; j++)
 	  partials[i][j] = penetrances[i][j];
@@ -1242,10 +1428,14 @@ void FamilyLikelihoodES::InitializePartials_BA()
     {
       if(ped->persons[family->path[i]]->isFounder())
         for(int j=0; j<3; j++)
-         partials[i][j] = priors[j]*penetrances[i][genoIdx[j]];
+         //partials[i][j] = priors[i][j]*penetrances[i][genoIdx[j]];
+         partials[i][j] = isChrY && sexes[i]==FEMALE ? 1.0 : priors[i][j]*penetrances[i][genoIdx[j]];
+
       else
         for(int j=0; j<3; j++)
-	  partials[i][j] = penetrances[i][genoIdx[j]];
+	  partials[i][j] = isChrY && sexes[i]==FEMALE ? 1.0: penetrances[i][genoIdx[j]];
+	  //partials[i][j] = penetrances[i][genoIdx[j]];
+
     }
 }
 

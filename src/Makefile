@@ -1,4 +1,5 @@
 CXXFLAGS = -O4 -D__ZLIB_AVAILABLE__ -D_FILE_OFFSET_BITS=64 -D__STDC_LIMIT_MACROS
+CXXFLAGSDEBUG = -g -D__ZLIB_AVAILABLE__ -D_FILE_OFFSET_BITS=64 -D__STDC_LIMIT_MACROS
 
 # C++ flags for different platform
 UNAME := $(shell uname)
@@ -18,3 +19,7 @@ $(TARGET): $(OBJ)
 	g++ -c $(CXXFLAGS) -fopenmp -I../core $<
 clean:
 	rm -f *.o $(TARGET)
+
+debug:
+	g++ -c $(CXXFLAGSDEBUG) -fopenmp -I../core *.cpp
+	g++ $(CXXFLAGSDEBUG) -o $(TARGET) $(OBJ) $(LIB) -lm -lz -lgomp

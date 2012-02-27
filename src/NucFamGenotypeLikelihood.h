@@ -62,7 +62,11 @@ public:
   GenotypeMutationModel gM;
   bool denovo_mono;
   double denovoLR;
-  
+  double AB;  
+  int sex;
+  bool isChrX;
+  bool isChrY;
+  bool isMT;
 public:
   NucFamGenotypeLikelihood();
   NucFamGenotypeLikelihood(PedigreeGLF *);
@@ -88,6 +92,9 @@ public:
   void   SetParentPriorSingleTrio_denovo(double);
   void   SetTheta(double);
   void   SetPolyPrior();
+  void   SetPolyPrior_chrX();
+  void   SetPolyPrior_chrY();
+  void   SetPolyPrior_MT();
   double GetPolyPrior();
   double GetPriorFreq();
   void   SetMleFreqFlag(bool);
@@ -147,6 +154,7 @@ public:
   int    CalcVarPosterior(int n);
   int    CalcMaxLogLkIdx(std::vector<double> &loglk, int n);
   double CalcSum(std::vector<double> &ratio);
+  void CalculateAB(double freq);
   void   OutputVCF(FILE *);
   void   OutputVCF_denovo(FILE *);
 };

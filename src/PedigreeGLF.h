@@ -6,6 +6,7 @@
 #include "BaseQualityHelper.h"
 #include "StringMap.h"
 #include "Error.h"
+#include <vector>
 
 class Poly
 {
@@ -104,7 +105,9 @@ private:
   Pedigree * ped;
   StringMap * glfMap;
   glfHandler **glf;
-  
+  std::vector<std::vector<int> > sexes;  
+  int maleFounders;
+  int femaleFounders;
  public:
   PedigreeGLF();
   PedigreeGLF(Pedigree *);
@@ -117,9 +120,12 @@ private:
   int GetFamCount();
   int GetFounderCout();
   int GetPersonCount();
+  void GetSexes();
   bool Move2NextSection();
   bool Move2NextEntry();
   bool Move2NextBaseEntry();
+  bool CheckSectionLabels();
+  bool CheckSectionLabels(String&, int, int);
   //bool CheckConsistency();
   unsigned char GetRefBase();
 };

@@ -22,6 +22,7 @@ class FamilyLikelihoodSeq : public NucFamGenotypeLikelihood
   void FillPenetrance();
   void FillPenetrance(FamilyLikelihoodES *famlk, PedigreeGLF *pedGLF);
   void FillZeroPenetrance(FamilyLikelihoodES *famlk, PedigreeGLF *pedGLF, int person, int genoIdx);
+  void SetNonAutosomeFlags(bool, bool, bool);
   double MonomorphismLogLikelihood_denovo(int, int);
   double PolymorphismLogLikelihood(int, int);
   double CalcAllFamLikelihood(double freq);

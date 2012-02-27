@@ -8,9 +8,10 @@ double glfHandler::nullLikelihoods[10] = {1., 1., 1., 1., 1., 1., 1., 1., 1., 1.
 
 glfHandler::glfHandler()
    {
+   isStub = true;
    sections = 0;
    currentSection = 0;
-   maxPosition = position = 0;
+   maxPosition = position = endOfSection = 0;
    }
 
 glfHandler::~glfHandler()
@@ -22,23 +23,44 @@ glfHandler::~glfHandler()
 
 bool glfHandler::Open(const String & filename)
    {
+   isStub = false;
    handle = ifopen(filename, "rb");
 
    if (handle == NULL)
+      {
+      isStub = true;
       return false;
+      }
 
    if (!ReadHeader())
       ifclose(handle);
 
+   endOfSection = true;
+
    return handle != NULL;
+   }
+
+void glfHandler::OpenStub()
+   {
+   isStub = true;
+   handle = NULL;
+
+   endOfSection = true;
+   data.recordType = 0;
+   maxPosition = 1999999999;
+   position = maxPosition + 1;
    }
 
 bool glfHandler::Create(const String & filename)
    {
+   isStub = false;
    handle = ifopen(filename, "wb");
 
    if (handle == NULL)
+      {
+      isStub = true;
       return false;
+      }
 
    WriteHeader();
 
@@ -52,6 +74,9 @@ bool glfHandler::isOpen()
 
 bool glfHandler::ReadHeader()
    {
+   if (isStub)
+      return true;
+
    if (handle == NULL)
       return false;
 
@@ -115,11 +140,27 @@ void glfHandler::Rewind()
 
       if (!ReadHeader())
          ifclose(handle);
+
+      endOfSection = true;
       }
    }
 
 bool glfHandler::NextSection()
    {
+   if (isStub)
+      {
+      endOfSection = true;
+      data.recordType = 0;
+      maxPosition = 1999999999;
+      position = maxPosition + 1;
+      return true;
+      }
+
+   while (!endOfSection && !ifeof(handle))
+      NextEntry();
+
+   endOfSection = false;
+
    int labelLength = 0;
 
    currentSection++;
@@ -152,22 +193,23 @@ bool glfHandler::NextBaseEntry()
 
 bool glfHandler::NextEntry()
    {
+   if (isStub)
+      return false;
+
    // Read record type
-   if (ifread(handle, &data, 1) != 1)
+   if (endOfSection || (ifread(handle, &data, 1) != 1))
       {
+      endOfSection = true;
       data.recordType = 0;
       position = maxPosition + 1;
       return false;
       }
 
    // printf("%d/%d\n", data.recordType, data.refBase);
-
-   if (position > maxPosition)
-      return true;
-
    switch (data.recordType)
       {
       case 0 :
+         endOfSection = true;
          position = maxPosition + 1;
          return true;
       case 1 :

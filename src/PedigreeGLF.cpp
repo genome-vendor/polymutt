@@ -1,4 +1,8 @@
 #include "PedigreeGLF.h"
+#include <string.h>
+
+#define MALE 1
+#define FEMALE 2
 
 void JointGenoLk::multiplyParentLikelihood(double lk)
 {
@@ -57,6 +61,8 @@ PedigreeGLF::PedigreeGLF()
   ped = NULL;
   glf = NULL;
   nonNULLglf = NULL;
+  maleFounders=0;
+  femaleFounders=0;
 }
 
 PedigreeGLF::PedigreeGLF(Pedigree * ped)
@@ -81,6 +87,22 @@ int PedigreeGLF::GetFounderCout()
 int PedigreeGLF::GetPersonCount()
 {
  return(nPerson);
+}
+
+void PedigreeGLF::GetSexes()
+{
+ sexes.resize(nFam);
+ for(int i=0; i<nFam; i++)
+ {
+  sexes[i].resize(ped->families[i]->count);
+  for(int j=0; j<ped->families[i]->count; j++)
+  {
+   Person *p = ped->persons[ped->families[i]->path[j]];
+   sexes[i][j] = p->sex;
+   if(p->sex==MALE && p->isFounder()) maleFounders++;
+   if(p->sex==FEMALE && p->isFounder()) femaleFounders++;
+  }
+ }
 }
 
 //prepare GLF files so that pointers of GLF are easily passed to functions for calculating likelihood
@@ -118,6 +140,9 @@ void PedigreeGLF::SetPedGLF(Pedigree * pedpt)
 	if(nValidGLF==0)
 		fprintf(stderr, "WARNING: No GLF files provided for family %s\n", ped->families[i]->famid.c_str());
     }
+  maleFounders=0;
+  femaleFounders=0;
+  GetSexes();
 }
 
 void PedigreeGLF::SetGLFMap(StringMap * map)
@@ -152,7 +177,7 @@ glfHandler * PedigreeGLF::GetNonNULLglf() { return(nonNULLglf); }
 
 bool PedigreeGLF::Move2NextSection()
 {
-  bool flag = true; 
+  bool flag = false; 
   for(int i=0; i<nFam; i++)
     {
 
@@ -165,6 +190,33 @@ bool PedigreeGLF::Move2NextSection()
     }
   return(flag);
 }
+
+bool PedigreeGLF::CheckSectionLabels()
+{
+  for(int i=0; i<nFam; i++)
+    {
+      for(int j=0; j<ped->families[i]->count; j++)
+	if(glf[i][j].label.IsEmpty() || strchr(WHITESPACE,glf[i][j].label[0])!=NULL ) return(false);
+    }
+   return(true);
+}
+
+bool PedigreeGLF::CheckSectionLabels(String& pid, int f_idx, int p_idx)
+{
+  for(int i=0; i<nFam; i++)
+    {
+      for(int j=0; j<ped->families[i]->count; j++)
+	if(glf[i][j].label.IsEmpty() || strchr(WHITESPACE,glf[i][j].label[0])!=NULL ){
+	Person *p = ped->persons[ped->families[i]->path[j]];
+	pid = p->pid;
+	f_idx = i;
+	p_idx = j;
+	return(false);
+	}
+    }
+   return(true);
+}
+
 
 bool PedigreeGLF::Move2NextEntry()
 {

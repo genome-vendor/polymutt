@@ -1,6 +1,9 @@
 #include "NucFamGenotypeLikelihood.h"
 #include <vector>
 
+#define MALE 1
+#define FEMALE 2
+
 void NucFamGenotypeLikelihood::InitializeValues()
 {
   vcf = false;
@@ -33,6 +36,11 @@ void NucFamGenotypeLikelihood::InitializeValues()
   varfreq.resize(8);
   denovo_mono = false;
   denovoLR = -1;
+  AB = 0.5;
+  sex = 0;
+  isChrX = false;
+  isChrY = false;
+  isMT = false;
 }
 
 NucFamGenotypeLikelihood::NucFamGenotypeLikelihood()
@@ -222,6 +230,45 @@ void NucFamGenotypeLikelihood::SetPolyPrior()
   
 }
 
+void NucFamGenotypeLikelihood::SetPolyPrior_chrX()
+{
+  prior = 0;
+  if(nFounders==0)
+    error("Family size is zero\n");
+  
+  for(int i=1; i<=(pedGLF->femaleFounders*2+pedGLF->maleFounders); i++) //number of chromosomes
+    prior += 1.0 / i;
+  priorFreq = 1-1./prior;
+  prior *= theta;  
+  
+}
+
+void NucFamGenotypeLikelihood::SetPolyPrior_chrY()
+{
+  prior = 0;
+  if(nFounders==0)
+    error("Family size is zero\n");
+  
+  for(int i=1; i<=pedGLF->maleFounders; i++) //number of chromosomes
+    prior += 1.0 / i;
+  priorFreq = 1-1./prior;
+  prior *= theta;  
+  
+}
+
+void NucFamGenotypeLikelihood::SetPolyPrior_MT()
+{
+  prior = 0;
+  if(nFounders==0)
+    error("Family size is zero\n");
+  
+  for(int i=1; i<=nFounders; i++) //number of chromosomes
+    prior += 1.0 / i;
+  priorFreq = 1-1./prior;
+  prior *= theta;  
+  
+}
+
 double NucFamGenotypeLikelihood::GetPolyPrior() { return(prior); }
 double NucFamGenotypeLikelihood::GetPriorFreq() { return priorFreq; }
 void NucFamGenotypeLikelihood::SetMleFreqFlag(bool b) { useMleFreq = b; }
@@ -230,6 +277,8 @@ void NucFamGenotypeLikelihood::SetPriorFreqFlag(bool b) { usePriorFreq = b; }
 void NucFamGenotypeLikelihood::SetParentPrior(double freq)
 {
   if(nFam>1) {
+   if(!isChrX && !isChrY && !isMT)
+   {
     parentPrior[0] = pow(freq,4);
     parentPrior[1] = freq*freq * freq*(1-freq)*2;
     parentPrior[2] = freq*freq * (1-freq)*(1-freq);
@@ -239,6 +288,40 @@ void NucFamGenotypeLikelihood::SetParentPrior(double freq)
     parentPrior[6] = (1-freq)*(1-freq) * freq*freq;
     parentPrior[7] = (1-freq)*(1-freq) * freq*(1-freq)*2;
     parentPrior[8] = (1-freq)*(1-freq) * (1-freq)*(1-freq);
+   }
+   if(isChrX){
+    parentPrior[0] = pow(freq, 3);
+    parentPrior[1] = freq * freq*(1-freq)*2;
+    parentPrior[2] = freq * (1-freq)*(1-freq);
+    parentPrior[3] = 0;
+    parentPrior[4] = 0;
+    parentPrior[5] = 0;
+    parentPrior[6] = (1-freq) * freq*freq;
+    parentPrior[7] = (1-freq) * freq*(1-freq)*2;
+    parentPrior[8] = (1-freq) * (1-freq)*(1-freq);
+  }
+   if(isChrY){
+    parentPrior[0] = freq;
+    parentPrior[1] = freq;
+    parentPrior[2] = freq;
+    parentPrior[3] = 0;
+    parentPrior[4] = 0;
+    parentPrior[5] = 0;
+    parentPrior[6] = (1-freq);
+    parentPrior[7] = (1-freq);
+    parentPrior[8] = (1-freq);
+   }
+   if(isMT) {
+    parentPrior[0] = freq * freq;
+    parentPrior[1] = 0.0;
+    parentPrior[2] = freq * (1-freq);
+    parentPrior[3] = 0;
+    parentPrior[4] = 0;
+    parentPrior[5] = 0;
+    parentPrior[6] = (1-freq) * freq;
+    parentPrior[7] = 0;
+    parentPrior[8] = (1-freq) * (1-freq);
+}
   }
   else SetParentPriorSingleTrio();
 }
@@ -446,7 +529,10 @@ void NucFamGenotypeLikelihood::CalcPostProb_SingleNucFam(int i, double freq)
   if(pedGLF->ped->families[i]->count<=pedGLF->ped->families[i]->founders)
   {
    for(int j=0; j<pedGLF->ped->families[i]->founders; j++)
+   {
+    sex = pedGLF->sexes[i][j];
     CalcPostProb_SinglePerson(i, j, freq);
+   }
     return;
   }
 
@@ -454,6 +540,7 @@ void NucFamGenotypeLikelihood::CalcPostProb_SingleNucFam(int i, double freq)
       
       for(int j=0; j<pedGLF->ped->families[i]->count; j++)
 	   {
+ 	    sex = pedGLF->sexes[i][j];
 	    if(j==0){
 	    p11 = parentMarginal[i][0] + parentMarginal[i][1] + parentMarginal[i][2];
 	    p12 = parentMarginal[i][3] + parentMarginal[i][4] + parentMarginal[i][5];
@@ -469,7 +556,7 @@ void NucFamGenotypeLikelihood::CalcPostProb_SingleNucFam(int i, double freq)
 	    }
 	    best = GetBestGenoIdx(p11, p12, p22);
 	    bestGenoIdx[i][j] = best; 
-	    bestGenoLabel[i][j] = GetBestGenoLabel_vcfv4(best); 
+	    bestGenoLabel[i][j] = isChrY && pedGLF->sexes[i][j]==FEMALE ? "." : GetBestGenoLabel_vcfv4(best);
 	    //bestGenoLabel[i][j] = GetBestGenoLabel(best); 
 	    dosage[i][j] = CalcDosage(i,j); 
 	  } //first parent
@@ -487,12 +574,11 @@ void NucFamGenotypeLikelihood::CalcPostProb_SingleNucFam(int i, double freq)
 	    }
 	    best = GetBestGenoIdx(p11, p12, p22);
 	    bestGenoIdx[i][j] = best; 
-	    bestGenoLabel[i][j] = GetBestGenoLabel_vcfv4(best);
+	    bestGenoLabel[i][j] = isChrY && pedGLF->sexes[i][j]==FEMALE ? "." : GetBestGenoLabel_vcfv4(best); 
 	    //bestGenoLabel[i][j] = GetBestGenoLabel(best);
 	    dosage[i][j] = CalcDosage(i,j);
 	  } //second parent
 	  else {
-
 	    JointGenoLk JGLK = KidJointGenoLikelihood(i,j); //Joint likelihood of the kid j marginalizing other kids
 	    
 	    JGLK.CalcPost();
@@ -504,10 +590,12 @@ void NucFamGenotypeLikelihood::CalcPostProb_SingleNucFam(int i, double freq)
 	    best = GetBestGenoIdx(JGLK.post11, JGLK.post12, JGLK.post22);
 
 	    bestGenoIdx[i][j] = best;
-	    bestGenoLabel[i][j] = GetBestGenoLabel_vcfv4(best);
+
+ 	    //sex = pedGLF->sexes[i][j];
+
+	    bestGenoLabel[i][j] = (isChrY && pedGLF->sexes[i][j]==FEMALE) ? "." : GetBestGenoLabel_vcfv4(best); 
 	    //bestGenoLabel[i][j] = GetBestGenoLabel(best);
 	    dosage[i][j] = CalcDosage(i,j);
-
 	  }  //kids
       } //END of for loop
 }
@@ -598,33 +686,54 @@ void NucFamGenotypeLikelihood::CalcPostProb_SingleNucFam_denovo(int i, double fr
 void NucFamGenotypeLikelihood::CalcPostProb_SinglePerson(int i, int j, double freq)
 {
   double lk11, lk12, lk22;
+  double priors[3];
+  priors[0] = freq*freq;
+  priors[1] = freq*(1-freq)*2;
+  priors[2] = (1-freq)*(1-freq);
+
   getGenoLikelihood(&(pedGLF->glf[i][j]), allele1, allele2, &lk11, &lk12, &lk22);
-  double mlk11 = lk11*freq*freq;
-  double mlk12 = lk12*freq*(1-freq)*2;
-  double mlk22 = lk22*(1-freq)*(1-freq);
+
+  if(isChrX)
+  { if(pedGLF->sexes[i][j]==MALE){ priors[0] = freq; priors[1]=0.; priors[2]=1-freq; }
+    else { priors[0] = freq*freq; priors[1] = 2*freq*(1-freq); priors[2] = (1-freq)*(1-freq);}
+  }
+  if(isChrY)
+  { if(pedGLF->sexes[i][j]==MALE) { priors[0] = freq; priors[1] = 0.; priors[2] = 1-freq; }
+    else { priors[0]=priors[1]=priors[2]=1.0; }
+  }
+  if(isMT)
+  { priors[0] = freq; priors[1] = 0; priors[2] = 1-freq; 
+  }
+
+  double mlk11 = lk11*priors[0];
+  double mlk12 = lk12*priors[1];
+  double mlk22 = lk22*priors[2];
   double sum = mlk11+mlk12+mlk22;
+
   if(sum==0) postProb[i][j][0]=postProb[i][j][1]=postProb[i][j][2]=1/3;
   else {
     postProb[i][j][0] =  mlk11/sum;
     postProb[i][j][1] =  mlk12/sum;
     postProb[i][j][2] =  mlk22/sum;
   }
-  
+
+  if(isChrY && pedGLF->sexes[i][j]==FEMALE) { postProb[i][j][0] = postProb[i][j][1] = postProb[i][j][2] = 0.0; }  
+
   int best = GetBestGenoIdx(mlk11, mlk12, mlk22);
   bestGenoIdx[i][j] =  best;
-  bestGenoLabel[i][j] = GetBestGenoLabel_vcfv4(best);
+  bestGenoLabel[i][j] = isChrY && pedGLF->sexes[i][j]==FEMALE ? "." : GetBestGenoLabel_vcfv4(best);
   //bestGenoLabel[i][j] = GetBestGenoLabel(best);
   dosage[i][j] = CalcDosage(i, j);
 }
 
-// Likelihood of genotypes of a kid marginalizing parents and (s)his siblings
+// Likelihood of genotypes of a kid marginalizing parents and his/her siblings
 JointGenoLk NucFamGenotypeLikelihood::KidJointGenoLikelihood(int famIdx, int kidIdx)
 {
   double lkF11, lkF12, lkF22, lkM11, lkM12, lkM22;
 
   getGenoLikelihood(pedGLF->glf[famIdx], allele1, allele2, &lkF11, &lkF12, &lkF22);
   getGenoLikelihood(pedGLF->glf[famIdx]+1, allele1, allele2, &lkM11, &lkM12, &lkM22);
-  
+
   JointGenoLk JGLK1111 = likelihoodKidGenotype(allele1,allele1,allele1,allele1, famIdx, kidIdx);
   JointGenoLk JGLK1112 = likelihoodKidGenotype(allele1,allele1,allele1,allele2, famIdx, kidIdx);
   JointGenoLk JGLK1122 = likelihoodKidGenotype(allele1,allele1,allele2,allele2, famIdx, kidIdx);
@@ -634,7 +743,7 @@ JointGenoLk NucFamGenotypeLikelihood::KidJointGenoLikelihood(int famIdx, int kid
   JointGenoLk JGLK2211 = likelihoodKidGenotype(allele2,allele2,allele1,allele1, famIdx, kidIdx);
   JointGenoLk JGLK2212 = likelihoodKidGenotype(allele2,allele2,allele1,allele2, famIdx, kidIdx);
   JointGenoLk JGLK2222 = likelihoodKidGenotype(allele2,allele2,allele2,allele2, famIdx, kidIdx);
-  
+
   JGLK1111.multiplyParentLikelihood(parentGLF[famIdx][0]*parentPrior[0]);
   JGLK1112.multiplyParentLikelihood(parentGLF[famIdx][1]*parentPrior[1]);
   JGLK1122.multiplyParentLikelihood(parentGLF[famIdx][2]*parentPrior[2]);
@@ -812,8 +921,53 @@ double NucFamGenotypeLikelihood::lkSinglePerson(int i, int j, double freq)
   double sum=0.0;
   double lk11, lk12, lk22;
   getGenoLikelihood(&(pedGLF->glf[i][j]), allele1, allele2, &lk11, &lk12, &lk22);
-  sum = sum + lk11*freq*freq + lk12*freq*(1-freq)*2 + lk22*(1-freq)*(1-freq);
+
+  double priors[3];
+  priors[0] = freq*freq;
+  priors[1] = freq*(1-freq)*2;
+  priors[2] = (1-freq)*(1-freq);
+
+  if(isChrX){if(pedGLF->sexes[i][j]==MALE) { lk12=0; priors[0]=freq; priors[1]=0; priors[2]=1-freq;} }
+  if(isChrY){if(pedGLF->sexes[i][j]==MALE) { lk12=0; priors[0]=freq; priors[1]=0; priors[2]=1-freq;} else return(1.0); } 
+  if(isMT){ lk12=0; priors[0] = freq; priors[1]=0; priors[2]=1-freq;}
+
+  sum = sum + lk11*priors[0] + lk12*priors[1] + lk22*priors[2];
   return(sum);
+}
+
+void NucFamGenotypeLikelihood::CalculateAB(double freq)
+{
+  AB = 0.5;
+  double lk11, lk12, lk22;
+  unsigned char llk11, llk12, llk22;
+  double A, B, PHet;
+  A=0.0; B=0.0;
+  int depth, nRef;
+
+  double p11 = freq*freq;
+  double p12 = 2*freq*(1-freq);
+  double p22 = (1-freq) * (1-freq);
+
+  for(int i=0; i<nFam; i++)
+   for(int j=0; j<pedGLF->ped->families[i]->count; j++)
+   {
+    depth = pedGLF->glf[i][j].GetDepth(pedGLF->currentPos);
+    getGenoLikelihood(&(pedGLF->glf[i][j]), allele1, allele2, &lk11, &lk12, &lk22);
+    getLogGenoLikelihood(&(pedGLF->glf[i][j]), allele1, allele2, &llk11, &llk12, &llk22);
+    PHet = (p12 * lk12)/(p11*lk11 + p12*lk12 + p22*lk22);
+
+    if(PHet>1e-05 && depth>0)
+    {
+     int scale = llk22 + llk11 - 2* llk12 + 6*depth;
+     int minimum = abs(llk22 - llk11);
+     if(scale < 4) scale = 4;
+     if(scale < minimum) scale = minimum;
+     nRef = 0.5 * depth *(1 + (llk22-llk11)/(scale + 1e-30));
+     A += PHet*nRef;
+     B += PHet*depth;
+    }
+   }
+  AB = (0.05 + A)/(0.1 + B);
 }
 
 void NucFamGenotypeLikelihood::CalcParentMarginal(int i, double freq)
@@ -823,6 +977,10 @@ void NucFamGenotypeLikelihood::CalcParentMarginal(int i, double freq)
 
   getGenoLikelihood(pedGLF->glf[i], allele1, allele2, &lkF11, &lkF12, &lkF22);
   getGenoLikelihood(pedGLF->glf[i]+1, allele1, allele2, &lkM11, &lkM12, &lkM22);
+
+ if(isChrX) lkF12 = 0.0;
+ if(isChrY) { lkM11=lkM12=lkM22=1.0; lkF12=0.0; }
+ if(isMT) lkF12=lkM12=0.0;
 
   parentGLF[i][0] = lkF11*lkM11;
   parentGLF[i][1] = lkF11*lkM12;
@@ -852,15 +1010,8 @@ void NucFamGenotypeLikelihood::CalcParentMarginal(int i, double freq)
 
   //Mariginal is joint likelihood of parents marginalizing all kids
   //This is to avoid redundant calculation
-  parentMarginal[i][0] = parentConditional[i][0]*parentPrior[0];
-  parentMarginal[i][1] = parentConditional[i][1]*parentPrior[1];
-  parentMarginal[i][2] = parentConditional[i][2]*parentPrior[2];
-  parentMarginal[i][3] = parentConditional[i][3]*parentPrior[3];
-  parentMarginal[i][4] = parentConditional[i][4]*parentPrior[4];
-  parentMarginal[i][5] = parentConditional[i][5]*parentPrior[5];
-  parentMarginal[i][6] = parentConditional[i][6]*parentPrior[6];
-  parentMarginal[i][7] = parentConditional[i][7]*parentPrior[7];
-  parentMarginal[i][8] = parentConditional[i][8]*parentPrior[8];
+  for(int j=0; j<9; j++)
+   parentMarginal[i][j] = parentConditional[i][j]*parentPrior[j];
 
 }
 
@@ -912,6 +1063,7 @@ void NucFamGenotypeLikelihood::CalcParentMarginal_denovo(int i, double freq)
 
 }
 
+// This function is not used for now
 void NucFamGenotypeLikelihood::CalcParentMarginal_leaveone(int i, double freq, int leave)
 {
   double lkF11, lkF12, lkF22, lkM11, lkM12, lkM22; // lkC11, lkC12, lkC22;
@@ -970,6 +1122,7 @@ double NucFamGenotypeLikelihood::likelihoodKids(int fa1, int fa2, int ma1, int m
   glfHandler ** glf = pedGLF->glf;
   for(int i=2; i<famSize; i++)
     {
+      int sex = pedGLF->sexes[famIdx][i];
       lk = likelihoodONEKid(&glf[famIdx][i], fa1, fa2, ma1, ma2);
       lkKids *= lk;
     }
@@ -977,6 +1130,7 @@ double NucFamGenotypeLikelihood::likelihoodKids(int fa1, int fa2, int ma1, int m
 }
 
 //likelihood of reads of ONE kid conditional on parental genotypes
+//key function for calculating the likelihood of a nuclear family
 double NucFamGenotypeLikelihood::likelihoodONEKid(glfHandler *glf, int fa1, int fa2, int ma1, int ma2)
 {
   double lk=1.0;
@@ -986,27 +1140,57 @@ double NucFamGenotypeLikelihood::likelihoodONEKid(glfHandler *glf, int fa1, int 
 
       // father 1/1
       if(fa1==allele1 && fa2==allele1 && ma1==allele1 && ma2==allele1)
-	{lk = lk11;      /* kidsCondLikelihood[famIdx][i][0] = lk;*/ }
+	{ lk = sex==MALE ? lk11 : 1.0; }
       else if(fa1==allele1 && fa2==allele1 && ma1==allele1 && ma2==allele2) 
-	{lk = 0.5 * (lk11+lk12);      /* kidsCondLikelihood[famIdx][i][1] = lk; */}
+	{
+	if(isChrX)
+	 lk = sex==MALE ? 0.5 * (lk11 + lk22) : 0.5 * (lk11 + lk12);
+	else if(isChrY)
+	 lk = sex==MALE ? lk11 : 1.0;
+	else if(isMT)
+	  lk = 0.5 * (lk11 + lk22);
+	else lk = 0.5 * (lk11+lk12);
+	}
       else if(fa1==allele1 && fa2==allele1 && ma1==allele2 && ma2==allele2) 
-	{lk = lk12;      /* kidsCondLikelihood[famIdx][i][2] = lk; */ }
+	if(isChrX)
+	  lk = sex==MALE ? lk22 : lk12;
+	else if(isChrY)
+	  lk = sex==MALE ? lk11 : 1.0;
+	else if(isMT)
+	 lk = lk22;
+	else lk = lk12;
       
       // father 1/2
       else if(fa1==allele1 && fa2==allele2 && ma1==allele1 && ma2==allele1)
-	{lk = 0.5 * (lk11 + lk12);     /* kidsCondLikelihood[famIdx][i][3] = lk; */}
+	if(isChrX || isChrY || isMT)
+	  lk = 0.0;
+	else lk = 0.5 * (lk11 + lk12);
       else if(fa1==allele1 && fa2==allele2 && ma1==allele1 && ma2==allele2) 
-	{lk = 0.25*lk11 + 0.5*lk12 + 0.25*lk22;       /*kidsCondLikelihood[famIdx][i][4] = lk;*/}
+	if(isChrX || isChrY || isMT) lk = 0.0;
+	else lk = 0.25*lk11 + 0.5*lk12 + 0.25*lk22;
       else if(fa1==allele1 && fa2==allele2 && ma1==allele2 && ma2==allele2 )
-	{lk = 0.5 * (lk12 + lk22);       /*kidsCondLikelihood[famIdx][i][5] = lk; */}
+	if(isChrX || isChrY || isMT) lk = 0.0;
+	else lk = 0.5 * (lk12 + lk22);       /*kidsCondLikelihood[famIdx][i][5] = lk; */
       
       // father 2/2
       else if(fa1==allele2 && fa2==allele2 && ma1==allele1 && ma2==allele1) 
-	{lk = lk12;      /*kidsCondLikelihood[famIdx][i][6] = lk; */ }
+	if(isChrX)
+	  lk = sex==MALE ? lk11 : lk12;
+	else if(isChrY)
+	  lk = sex==MALE ? lk22 : 1.0;
+	else if(isMT)
+	  lk = lk11;
+	else lk = lk12;      /*kidsCondLikelihood[famIdx][i][6] = lk; */ 
       else if(fa1==allele2 && fa2==allele2 && ma1==allele1 && ma2==allele2)
-	{lk = 0.5 * (lk12 + lk22);       /*kidsCondLikelihood[famIdx][i][7] = lk; */}
+	if(isChrX)
+	  lk = sex==MALE ? 0.5*(lk11+lk22) : 0.5 * (lk12 + lk22);
+	else if(isChrY)
+	  lk = sex==MALE ? lk22 : 1.0;
+	else if(isMT)
+	  lk = 0.5 * (lk11 + lk22);
+	else lk = 0.5 * (lk12 + lk22);
       else if(fa1==allele2 && fa2==allele2 && ma1==allele2 && ma2==allele2) 
-	{lk = lk22;       /*kidsCondLikelihood[famIdx][i][8] = lk;*/ }
+	 lk = sex==MALE ? lk22 : 1.0;       /*kidsCondLikelihood[famIdx][i][8] = lk;*/ 
       
   return(lk);
 }
@@ -1078,6 +1262,7 @@ double NucFamGenotypeLikelihood::likelihoodKids_leaveone(int fa1, int fa2, int m
 
 
 //likelihood of the reads and a specific genotype of a kid conditional on parental genotypes
+//key function to modify for non-autosomes for calculating posterior genotype likelihoods
 JointGenoLk NucFamGenotypeLikelihood::likelihoodKidGenotype(int fa1, int fa2, int ma1, int ma2, int famIdx, int kidIndex)
 {
   double lkKidG11 = 1.0;
@@ -1093,29 +1278,80 @@ JointGenoLk NucFamGenotypeLikelihood::likelihoodKidGenotype(int fa1, int fa2, in
     {
       getGenoLikelihood(&glf[famIdx][i], allele1, allele2, &lk11, &lk12, &lk22);
       
+      int sex = pedGLF->sexes[famIdx][i];      
       // father 1/1
       if(fa1==allele1 && fa2==allele1 && ma1==allele1 && ma2==allele1)
-	{lk = lk11; lkg11 = lk11; lkg12=lkg22=0; }
+	{
+	lk = lk11; 
+	lkg11 = lk11; lkg12=lkg22=0; 
+	}
       if(fa1==allele1 && fa2==allele1 && ma1==allele1 && ma2==allele2) 
-	{lk = 0.5 * (lk11+lk12); lkg11=lk11*0.5; lkg12=lk12*0.5; lkg22=0;}
+	{
+        if(isChrX)
+         { lk = sex==MALE ? 0.5 * (lk11 + lk22) : 0.5 * (lk11+lk12);
+	   if(sex==MALE) {lkg11=0.5*lk11; lkg12=0.0; lkg22=0.5*lk22; } 
+	   else {lkg11=0.5*lk11; lkg12=0.5*lk12; lkg22=0;}
+	}
+        else if(isChrY)
+         { lk = sex==MALE ? lk11 : 1.0; 
+	   if(sex==MALE){ lkg11=lk11; lkg12=lkg22=0.0;}
+	   else {lkg11=lkg12=lkg22=0.0;}
+	 }
+        else if(isMT)
+         { 
+	   lk = 0.5 * (lk11 + lk22);
+	   lkg11 = 0.5*lk11; lkg22 = 0.5*lk22; lkg12=0.0;
+	 }
+        else 
+	 { lk = 0.5 * (lk11+lk12); lkg11=lk11*0.5; lkg12=lk12*0.5; lkg22=0;
+ 	 }
+	}
       if(fa1==allele1 && fa2==allele1 && ma1==allele2 && ma2==allele2) 
-	{lk = lk12; lkg11=0; lkg12=lk12; lkg22=0; }
-      
+	{
+	if(isChrX){lk = sex==MALE ? lk22 : lk12; if(sex==MALE){lkg11=lkg12=0; lkg22=lk22;} else{lkg11=lkg22=0; lkg12=lk12;}}
+	else if(isChrY){lk = sex==MALE ? lk11 : 1.0; if(sex==MALE){lkg11=lk11; lkg12=lkg22=0;} else{lkg11=lkg12=lkg22=0.;}}
+	else if(isMT){lk = lk22; lkg11=lkg12=0; lkg22=lk22;}
+	else { lk = lk12; lkg11=0; lkg12=lk12; lkg22=0; }
+      	}
       // father 1/2
       if(fa1==allele1 && fa2==allele2 && ma1==allele1 && ma2==allele1)
-	{lk = 0.5 * (lk11 + lk12); lkg11=lk11*0.5; lkg12=lk12*0.5; lkg22=0; }
+	{ 
+	if(isChrX || isChrY || isMT){lk=0.0; lkg11=lkg12=lkg22=0.0;}
+	else {lk = 0.5 * (lk11 + lk12); lkg11=lk11*0.5; lkg12=lk12*0.5; lkg22=0; }
+	}
       if(fa1==allele1 && fa2==allele2 && ma1==allele1 && ma2==allele2) 
-	{lk = 0.25*lk11 + 0.5*lk12 + 0.25*lk22; lkg11=lk11*0.25; lkg12=lk12*0.5; lkg22=lk22*0.25;}
+	{
+	if(isChrX || isChrY || isMT){lk=0.0; lkg11=lkg12=lkg22=0.0;}
+	else {lk = 0.25*lk11 + 0.5*lk12 + 0.25*lk22; lkg11=lk11*0.25; lkg12=lk12*0.5; lkg22=lk22*0.25;}
+	}
       if(fa1==allele1 && fa2==allele2 && ma1==allele2 && ma2==allele2)
-	{lk = 0.5 * (lk12 + lk22); lkg11=0; lkg12=lk12*0.5; lkg22=lk22*0.5;}
+	{
+	if(isChrX || isChrY || isMT){lk=0.0; lkg11=lkg12=lkg22=0.0;}
+	else{ lk = 0.5 * (lk12 + lk22); lkg11=0; lkg12=lk12*0.5; lkg22=lk22*0.5;}
+	}
       
       // father 2/2
       if(fa1==allele2 && fa2==allele2 && ma1==allele1 && ma2==allele1) 
-	{lk = lk12; lkg11=0; lkg12=lk12; lkg22=0; }
+	{
+	if(isChrX){ lk = sex==MALE ? lk11 : lk12; if(sex==MALE){lkg11=lk11; lkg12=lkg22=0.0;} else{lkg11=lkg22=0.0; lkg12=lk12;}}
+	else if(isChrY){lk = sex==MALE ? lk22 : 1.0; if(sex==MALE){lkg11=lkg12=0.0; lkg22=lk22; }else{lkg11=lkg12=lkg22=0.0;}}
+	else if(isMT) {lk=lk11; lkg11=lk11; lkg12=lkg22=0.0;}
+	else {lk = lk12; lkg11=0; lkg12=lk12; lkg22=0; }
+	}
       if(fa1==allele2 && fa2==allele2 && ma1==allele1 && ma2==allele2)
-	{lk = 0.5 * (lk12 + lk22); lkg11=0; lkg12=lk12*0.5; lkg22=lk22*0.5;}
-      if(fa1==allele2 && fa2==allele2 && ma1==allele2 && ma2==allele2) 
-	{lk = lk22; lkg11=0; lkg12=0; lkg22=lk22;}
+	{
+	if(isChrX){lk = sex==MALE ? 0.5*(lk11+lk22) : 0.5*(lk12+lk22); if(sex==MALE){lkg11=0.5*lk11; lkg22=0.5*lk22; lkg12=0.0;} else{lkg11=0.0; lkg12=0.5*lk12; lkg22=0.5*lk22;} }
+	else if(isChrY){lk = sex==MALE ? lk22 : 1.0; if(sex==MALE){lkg11=lkg12=0.0; lkg22=lk22; } else {lkg11=lkg12=lkg22=0.0;} }
+	else if(isMT){lk=0.5*(lk11+lk22); lkg11=0.5*lk11; lkg22=0.5*lk22; lkg12=0.0;}
+	else {lk = 0.5 * (lk12 + lk22); lkg11=0; lkg12=lk12*0.5; lkg22=lk22*0.5;}
+	}
+      if(fa1==allele2 && fa2==allele2 && ma1==allele2 && ma2==allele2)
+	{
+	if(isChrX){lk=lk22; lkg11=lkg11=0.0; lkg22=lk22;}
+	if(isChrY){lk= sex==MALE ? lk22 : 1.0; if(sex==MALE){lkg11=lkg12=0.0; lkg22=lk22;} else {lkg11=lkg22=lkg12=0.0;}}
+	if(isMT){lk=lk22; lkg11=lkg12=0.0; lkg22=lk22;}
+	else {lk = lk22; lkg11=0; lkg12=0; lkg22=lk22;}
+	}
         
       if(i!=kidIndex)
 	{
@@ -1134,7 +1370,7 @@ JointGenoLk NucFamGenotypeLikelihood::likelihoodKidGenotype(int fa1, int fa2, in
   JGLK.g11 = lkKidG11;
   JGLK.g12 = lkKidG12;
   JGLK.g22 = lkKidG22;
-  
+
   return(JGLK);
 }
 
@@ -1285,6 +1521,7 @@ String NucFamGenotypeLikelihood::GetBestGenoLabel_denovo(int best){
 
 String NucFamGenotypeLikelihood::GetBestGenoLabel_vcfv4(int best){
   String genotypeLabel[5] = {"0/0", "0/1", "1/1", "1/2", "2/2"};
+  String genotypeLabel_Hap[5] = {"0", "ERROR", "1", "ERROR2", "2"};
   int labelIdx;
   if(best==0)
     if(pedGLF->refBase==allele1) labelIdx = 0; else labelIdx = 2;
@@ -1292,6 +1529,12 @@ String NucFamGenotypeLikelihood::GetBestGenoLabel_vcfv4(int best){
     if(pedGLF->refBase==allele1) labelIdx = 1; else labelIdx = 3;
   if(best==2)
     if(pedGLF->refBase==allele1) labelIdx = 2 ; else labelIdx = 4; 
+
+  if(isChrY || isMT)
+   return(genotypeLabel_Hap[labelIdx]);
+  
+  if(isChrX && sex==MALE)
+   return(genotypeLabel_Hap[labelIdx]);
 
   return(genotypeLabel[labelIdx]);
 }
@@ -1450,15 +1693,19 @@ void NucFamGenotypeLikelihood::OutputVCF(FILE * fh)
     fprintf(fh, "\n");
     vcf = true;
   }
- 
+
+  if(!isChrX && !isChrY && !isMT) CalculateAB(GetMinimizer()); 
+
   String FILTER;
   FILTER.printf(".");
 
   String INFO;
   if(nFam==1 && ped->families[0]->isNuclear())
    INFO.printf("NS=%d;PS=%.1f;DP=%d", numSampWithData, percSampWithData*100, totalDepth);
+  else if(isChrX || isChrY || isMT)
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer());
   else
-  INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer());
+  INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f;AB=%.3f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer(), AB);
 
   String FORMAT = "GT:GQ:DP:DS"; if(!par->gl_off) FORMAT+=":GL";
   char bases[5]  = {'0', 'A', 'C', 'G', 'T'};
@@ -1567,6 +1814,6 @@ void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
 	fprintf(fh, "%d",ptrlk[9]);
 	}
       }
-  fprintf(fh, "\n");
+  fprintf(fh, "\n"); fflush(fh);
 }
 

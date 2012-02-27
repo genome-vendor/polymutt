@@ -22,6 +22,10 @@ void FamilyLikelihoodSeq::InitFamilyLikelihoodES()
       fam[i].SetFamilyIndex(i);
       fam[i].SetTransmissionMatrix();
       fam[i].SetTransmissionMatrix_BA();
+      fam[i].SetTransmissionMatrix_BA_CHRX_2Female();
+      fam[i].SetTransmissionMatrix_BA_CHRX_2Male();
+      fam[i].SetTransmissionMatrix_BA_CHRY();
+      fam[i].SetTransmissionMatrix_BA_MITO();
       fam[i].PreparePeeling();
     }
 }
@@ -96,7 +100,7 @@ void FamilyLikelihoodSeq::CalcPostProb_SingleExtendedPed(int i, double freq)
 	if(max<lk[k]) { max=lk[k]; best=k; }
 
       bestGenoIdx[i][j] = best;       
-      bestGenoLabel[i][j] = GetBestGenoLabel_denovo(best);
+      bestGenoLabel[i][j] = GetBestGenoLabel(best);
       
     }
     
@@ -142,6 +146,17 @@ void FamilyLikelihoodSeq::CalcPostProb_SingleExtendedPed_BA(int i, double freq)
   
   for(int j=0; j<pedGLF->ped->families[i]->count; j++)
     {
+      sex = pedGLF->sexes[i][j];
+
+      if(isChrY && pedGLF->sexes[i][j]==FEMALE)
+      {
+        bestGenoIdx[i][j] = 0; 
+        bestGenoLabel[i][j] = ".";
+        postProb[i][j][0]=postProb[i][j][1]=postProb[i][j][2]=0.0;
+        dosage[i][j] = 0;
+	continue;
+      }
+
       FillZeroPenetrance(&fam[i], pedGLF, j, glfHandler::GenotypeIndex(allele1, allele1));
       lk11 = CalcSingleFamLikelihood_BA(i, freq);
       
@@ -160,9 +175,11 @@ void FamilyLikelihoodSeq::CalcPostProb_SingleExtendedPed_BA(int i, double freq)
 	postProb[i][j][1] = lk12/sum;
 	postProb[i][j][2] = lk22/sum;
       }
+
       best = GetBestGenoIdx(lk11, lk12, lk22);
       bestGenoIdx[i][j] = best; 
       //bestGenoLabel[i][j] = GetBestGenoLabel(best);
+      //bestGenoLabel[i][j] = isChrY && pedGLF->sexes[i][j]==FEMALE ? "./." : GetBestGenoLabel_vcfv4(best);
       bestGenoLabel[i][j] = GetBestGenoLabel_vcfv4(best);
       dosage[i][j] = CalcDosage(i,j);
     }
@@ -295,4 +312,15 @@ void FamilyLikelihoodSeq::FillZeroPenetrance(FamilyLikelihoodES *famlk, Pedigree
 	  else famlk->penetrances[i][j] = 0.0;
    }   
  }
+}
+
+void FamilyLikelihoodSeq::SetNonAutosomeFlags(bool x, bool y, bool mt)
+{
+ isChrX = x; isChrY=y; isMT=mt;
+  for(int i=0; i<nFam; i++) 
+  {
+   fam[i].isChrX = x;
+   fam[i].isChrY=y;
+   fam[i].isMT=mt;
+  }
 }

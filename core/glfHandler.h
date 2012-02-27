@@ -47,6 +47,7 @@ class glfHandler
    {
    public:
       // Global information about the current GLF file
+      bool     isStub;
       IFILE    handle;
       String   header;
 
@@ -55,6 +56,9 @@ class glfHandler
       int      sections;
       int      currentSection;
       int      maxPosition;
+
+      // Information on whether the end of the current section has been reached
+      bool   endOfSection;
 
       // Currently active GLF record
       glfEntry data;
@@ -69,6 +73,7 @@ class glfHandler
       ~glfHandler();
 
       bool Open(const String & filename);
+      void OpenStub();
       bool Create(const String & filename);
       bool isOpen();
       void Close();
@@ -86,7 +91,7 @@ class glfHandler
       char     GetReference(int position, char defaultBase);
       int      GetDepth(int position);
       const double * GetLikelihoods(int position);
-      const unsigned char *   GetLogLikelihoods(int position);
+      const unsigned char * GetLogLikelihoods(int position);
       int      GetMapQuality(int position);
 
       static const double * GetDefaultLikelihoods()

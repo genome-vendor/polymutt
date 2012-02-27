@@ -8,8 +8,10 @@
 #include <vector>
 #include <map>
 
-using namespace std;
+#define MALE 1
+#define FEMALE 2
 
+using namespace std;
 
 class ES_Peeling
 {
@@ -64,6 +66,8 @@ class FamilyLikelihoodES
   int allele1, allele2;
   double frequency;
   std::vector<int> genoIdx;
+  bool isChrX, isChrY, isMT;
+  std::vector<int> sexes;
 
   //de novo mutation models
   AlleleMutationModel *aM;
@@ -71,12 +75,16 @@ class FamilyLikelihoodES
       
  ES_Peeling es;
  
- vector<double> priors;
+ std::vector<std::vector<double> > priors;
  Matrix penetrances;
  Matrix states; //indices of genotypes
  vector<double> ** transmission;
  vector<double> ** transmission_denovo;
  vector<double> ** transmission_BA;
+ vector<double> ** transmission_BA_CHRX_2Female;
+ vector<double> ** transmission_BA_CHRX_2Male;
+ vector<double> ** transmission_BA_CHRY;
+ vector<double> ** transmission_BA_MITO;
  Matrix partials;
  std::map<pair<int, int>, vector<vector<double> > > marriage_partials;
              
@@ -96,6 +104,11 @@ class FamilyLikelihoodES
  void SetTransmissionMatrix();
  void SetTransmissionMatrix_denovo();
  void SetTransmissionMatrix_BA();
+ void SetTransmissionMatrix_BA_CHRX_2Female();
+ void SetTransmissionMatrix_BA_CHRX_2Male();
+ void SetTransmissionMatrix_BA_CHRY();
+ void SetTransmissionMatrix_BA_MITO();
+ double GetTransmissionProb_BA(int, int, int, int);
  void SetMarriagePartials(std::pair<int, int>&);
  void SetMarriagePartials_BA(std::pair<int, int>&);
  void SetGenotypeMutationModel(GenotypeMutationModel *);
@@ -104,6 +117,10 @@ class FamilyLikelihoodES
  void FreeTransmissionMatrix(); 
  void FreeTransmissionMatrix_denovo(); 
  void FreeTransmissionMatrix_BA(); 
+ void FreeTransmissionMatrix_BA_CHRX_2Female(); 
+ void FreeTransmissionMatrix_BA_CHRX_2Male(); 
+ void FreeTransmissionMatrix_BA_CHRY(); 
+ void FreeTransmissionMatrix_BA_MITO(); 
  void InitializeStates(double freq);
  void InitializePartials();
  void InitializePartials_BA();

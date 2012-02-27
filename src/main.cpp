@@ -63,7 +63,6 @@ int main(int argc, char * argv[])
   String pedFile, datFile, glfListFile;
   String vcfFile = "variantCalls.vcf";
   String positionfile;
-  String chrs2process;
   double theta = 0.001;
   double tstv_ratio = 2.0;
   double precision = 0.0001;
@@ -73,6 +72,10 @@ int main(int argc, char * argv[])
   double denovo_tstv_ratio = 2.0;
   double denovoLR = 1;
   bool gl_off = false;
+  String chrs2process;
+  String chrX_label("X");
+  String chrY_label("Y");
+  String MT_label("MT");
 
   ParameterList pl;
 
@@ -87,6 +90,11 @@ int main(int argc, char * argv[])
     LONG_DOUBLEPARAMETER("theta", &theta)
     LONG_PARAMETER_GROUP("Prior of ts/tv ratio")
     LONG_DOUBLEPARAMETER("poly_tstv", &tstv_ratio)
+  LONG_PARAMETER_GROUP("Non-autosome labels")
+      LONG_STRINGPARAMETER("chrX", &chrX_label)
+      LONG_STRINGPARAMETER("chrY", &chrY_label)
+      LONG_STRINGPARAMETER("MT", &MT_label)
+
   LONG_PARAMETER_GROUP("de novo mutation")
       LONG_PARAMETER("denovo", &denovo)
       LONG_DOUBLEPARAMETER("rate_denovo", &denovo_mut_rate)
@@ -96,9 +104,9 @@ int main(int argc, char * argv[])
     LONG_DOUBLEPARAMETER("prec", &precision)
   LONG_PARAMETER_GROUP("Multiple threading")
     LONG_INTPARAMETER("nthreads", &num_threads)
-  LONG_PARAMETER_GROUP("Chromosomes to process")
+    LONG_PARAMETER_GROUP("Chromosomes to process")
     LONG_STRINGPARAMETER("chr2process", &chrs2process)
-  LONG_PARAMETER_GROUP("Output")
+    LONG_PARAMETER_GROUP("Output")
     LONG_STRINGPARAMETER("vcf", &vcfFile)
     LONG_PARAMETER("gl_off", &gl_off)
     END_LONG_PARAMETERS();
@@ -141,7 +149,9 @@ int main(int argc, char * argv[])
   par.denovo = denovo;
   par.denovoLR = denovoLR;
   par.gl_off = gl_off;
-  par.chrs2process = chrs2process;
+  par.chrX_label = chrX_label;
+  par.chrY_label = chrY_label;
+  par.MT_label = MT_label;
 
   if(denovo && denovoLR<0) error("denovo_min_LLR can only be greater than 0 !\n");
 
@@ -175,6 +185,13 @@ int main(int argc, char * argv[])
 
   ped.Prepare(datFH);
   ped.Load(pedFH);
+
+/*
+****  This is for debug purpose which is to compare results of nuclear families
+      using two algorithms. They should give IDENTICAL results
+  for(int f=0; f<ped.familyCount; f++)
+   ped.families[f]->generations=2;
+*/
 
   if(datFH != NULL) ifclose(datFH);
   if(pedFH != NULL) ifclose(pedFH);
@@ -224,17 +241,32 @@ int main(int argc, char * argv[])
   chrs.AddTokens(chrs2process, ',');
   for(int cidx=0; cidx<chrs.Length(); cidx++)
    chrs2process_map[chrs[cidx]]++;
-  
+
   printf("Analysis started on %s\n", ctime(&t));
   Matrix pen; 
   int maxidx = 0;
+  int chrProcessedCount=0;
+  String invalid_pid; int invalid_fam_idx, invalid_person_idx;
+
   while(pedGLF.Move2NextSection())
     {
-     if(chrs2process_map.size()>0 && chrs2process_map[pedGLF.GetNonNULLglf()->label]<1) continue;
+      if(chrs2process_map.size()>0 && chrProcessedCount >= chrs2process_map.size() ) break;
+      if(!pedGLF.CheckSectionLabels(invalid_pid, invalid_fam_idx, invalid_person_idx)) {
+	fprintf(stderr, "Error: GLF of person with PID %s has invalid Section label '%s'\n", invalid_pid.c_str(), pedGLF.glf[invalid_fam_idx][invalid_person_idx].label.c_str());
+	exit(1);}
+      if(chrs2process_map.size()>0 && chrs2process_map[pedGLF.GetNonNULLglf()->label]<1) { while(pedGLF.Move2NextEntry()){}; continue;}
+
+      if(pedGLF.GetNonNULLglf()->label == par.chrX_label) { for(int i=0; i<7; i++) famlk[i].SetNonAutosomeFlags(true, false, false); }
+      if(pedGLF.GetNonNULLglf()->label == par.chrY_label) { for(int i=0; i<7; i++) famlk[i].SetNonAutosomeFlags(false, true, false); }
+      if(pedGLF.GetNonNULLglf()->label == par.MT_label) {  for(int i=0; i<7; i++)  famlk[i].SetNonAutosomeFlags(false, false, true); }
 
       homoRef = transitions = transversions = otherPolymorphism = tstvs1Cnt = tstvs2Cnt = tvs1tvs2Cnt = nocall = actuaBases = 0; for(int k=0; k<5; k++) refBaseCounts[k]=0; 
       cnt=cntSec=totalEntryCnt = 0; minTotalDepthFilter = maxTotalDepthFilter = maxAvgDepthFilter = minAvgDepthFilter = minMapQualFilter = minAvgMapQualFilter = 0;
-    
+
+      polyPrior = famlk[0].GetPolyPrior();
+
+      chrProcessedCount++;
+
       while(pedGLF.Move2NextBaseEntry())
 	{
 	  for(int r=0; r<7; r++)
@@ -262,8 +294,6 @@ int main(int argc, char * argv[])
 	  int ts       = (Poly::ts(refBase));   //transition
 	  int tvs1     = (Poly::tvs1(refBase)); //transvertions1
 	  int tvs2     = (Poly::tvs2(refBase)); //transvertion2
-
-	  polyPrior = famlk[0].GetPolyPrior();
 
 # ifdef _OPENMP
 # pragma omp parallel sections
@@ -418,7 +448,7 @@ int main(int argc, char * argv[])
       printf("Summary of reference -- %s\n", pedGLF.GetNonNULLglf()->label.c_str()); 
       printf("Total Entry Count: %9d\n", totalEntryCnt);
       printf("Total Base Cout: %9d\n", totalBases);
-      printf("Total '0' Base Count: %9d\n", refBaseCounts[0]);
+      //printf("Total '0' Base Count: %9d\n", refBaseCounts[0]);
       printf("Non-Polymorphic Count: %9d\n", homoRef);
       printf("Transition Count: %9d\n", transitions);
       printf("Transversion Count: %9d\n", transversions);
