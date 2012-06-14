@@ -1,0 +1,12 @@
+Source: polymutt0.10
+Section: science
+Priority: optional
+Build-Depends: debhelper (>= 7), zlib1g-dev
+Maintainer: Bingshan Li <bingshan@umich.edu>
+Homepage: http://genome.sph.umich.edu/wiki/Polymutt
+Vcs-Git: git://github.com/ernfrid/polymutt.git
+
+Package: polymutt0.10
+Architecture: amd64
+Depends: zlib1g
+Description: The program polymutt implemented a likelihood-based framework for calling single nucleotide variants and detecting de novo point mutation events in families for next-generation sequencing data. The program takes as input genotype likelihood format (GLF) files which can be generated following the Creation of GLF files instruction and outputs the result in the [VCF] format. The variant calling and de novo mutation detection are modelled jointly within families and can handle both nuclear and extended pedigrees without consanguinity loops. The input is a set of GLF files for each of family members and the relationships are specified through the .ped file.
