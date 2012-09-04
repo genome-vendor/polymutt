@@ -97,7 +97,9 @@ private:
   int nPerson; 
   String glfFileKey;
   glfHandler * nonNULLglf;
-  
+  int nonNullIndex_i, nonNullIndex_j;  
+  String nonNullPID;
+
  public:
   unsigned char refBase;
   int currentPos;

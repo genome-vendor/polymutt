@@ -1673,6 +1673,7 @@ void NucFamGenotypeLikelihood::OutputVCF(FILE * fh)
     fprintf(fh, "##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of Samples With Data\">\n");
     fprintf(fh, "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Percentage of Samples With Data\">\n");
     fprintf(fh, "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total Read Depth\">\n");
+    fprintf(fh, "##INFO=<ID=MQ,Number=1,Type=Float,Description=\"Average Map Quality\">\n");
     if(nFam>1 || ped->families[0]->isNuclear()==false) 
     fprintf(fh, "##INFO=<ID=AF,Number=.,Type=Float,Description=\"Reference Allele Frequency\">\n");
     fprintf(fh, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
@@ -1701,11 +1702,11 @@ void NucFamGenotypeLikelihood::OutputVCF(FILE * fh)
 
   String INFO;
   if(nFam==1 && ped->families[0]->isNuclear())
-   INFO.printf("NS=%d;PS=%.1f;DP=%d", numSampWithData, percSampWithData*100, totalDepth);
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual);
   else if(isChrX || isChrY || isMT)
-   INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer());
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f;AF=%.4f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual, GetMinimizer());
   else
-  INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f;AB=%.3f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer(), AB);
+  INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f;AF=%.4f;AB=%.3f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual, GetMinimizer(), AB);
 
   String FORMAT = "GT:GQ:DP:DS"; if(!par->gl_off) FORMAT+=":GL";
   char bases[5]  = {'0', 'A', 'C', 'G', 'T'};
@@ -1747,6 +1748,7 @@ void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
     fprintf(fh, "##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of Samples With Data\">\n");
     fprintf(fh, "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Percentage of Samples With Data\">\n");
     fprintf(fh, "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total Read Depth\">\n");
+    fprintf(fh, "##INFO=<ID=MQ,Number=1,Type=Float,Description=\"Average Map Quality\">\n");
     if(nFam>1 || ped->families[0]->isNuclear()==false) 
     fprintf(fh, "##INFO=<ID=AF,Number=.,Type=Float,Description=\"Reference Allele Frequency\">\n");
     fprintf(fh, "##INFO=<ID=DQ,Number=1,Type=Float, Description=\"De Novo Mutation Quality\">\n");
@@ -1779,9 +1781,9 @@ void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
   String INFO;
 
   if(nFam==1 && ped->families[0]->isNuclear())
-   INFO.printf("NS=%d;PS=%.1f;DP=%d;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, denovoLR);
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual, denovoLR);
   else
-   INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer(), denovoLR);
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f;AF=%.4f;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual, GetMinimizer(), denovoLR);
 
   String FORMAT = "GT:GQ:DP"; if(par->gl_off==false) FORMAT+=":GL";
   char bases[5]  = {'0', 'A', 'C', 'G', 'T'};

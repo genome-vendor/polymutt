@@ -61,6 +61,8 @@ PedigreeGLF::PedigreeGLF()
   ped = NULL;
   glf = NULL;
   nonNULLglf = NULL;
+  nonNullIndex_i = 0;
+  nonNullIndex_j = 0;
   maleFounders=0;
   femaleFounders=0;
 }
@@ -132,7 +134,15 @@ void PedigreeGLF::SetPedGLF(Pedigree * pedpt)
           String glfFileName = * ((String*)((*glfMap).Object(glfFileKey)));
 
           bool flag = glf[i][j].Open(glfFileName.c_str()); 	 
-	  if(nonNULLglf==NULL && flag) nonNULLglf = &glf[i][j]; 
+
+	  if(nonNULLglf==NULL && flag) { 
+		nonNULLglf = &glf[i][j];
+		nonNullIndex_i = i;
+		nonNullIndex_j = j;
+		Person *p = ped->persons[ped->families[i]->path[j]];
+		nonNullPID = p->pid;
+	  }
+
           if(flag==false) 
 	    error("GLF file %s can  not be opened!\n", glfFileName.c_str());
 	  nValidGLF++;
@@ -180,14 +190,23 @@ bool PedigreeGLF::Move2NextSection()
   bool flag = false; 
   for(int i=0; i<nFam; i++)
     {
-
       for(int j=0; j<ped->families[i]->count; j++)
         { 
 	  if(glf[i][j].handle==NULL) continue;
+	  if(glf[i][j].isStub) continue;
           flag = glf[i][j].NextSection(); 
+	  if(glf[i][j].maxPosition!=nonNULLglf->maxPosition || glf[i][j].label !=nonNULLglf->label)
+	   {
+		Person *p = ped->persons[ped->families[i]->path[j]];
+        	String pid = p->pid;
+	   error("GLF files are not compatible:\n\tFile of person %s has section %s with %d entries ...\n\tFile of person %s has section %s with %d entries ...\n",
+		nonNullPID.c_str(), glf[nonNullIndex_i][nonNullIndex_j].label.c_str(), 
+		glf[nonNullIndex_i][nonNullIndex_j].maxPosition, pid.c_str(), glf[i][j].label.c_str(), glf[i][j].maxPosition);
+	  }
           if(!flag) return(flag);
         }
     }
+  currentPos = 0;
   return(flag);
 }
 
@@ -253,6 +272,16 @@ bool PedigreeGLF::Move2NextEntry()
 
 bool PedigreeGLF::Move2NextBaseEntry()
 {
+         if (currentPos > 0)
+            {
+            // Check whether we have reached the end of the current chromosome
+            bool done = false;
+  for(int i=0; i<nFam; i++)
+      for(int j=0; j<ped->families[i]->count; j++)
+	if (glf[i][j].data.recordType == 0)
+            return(false);
+    }
+
   bool flag = true;
   for(int i=0; i<nFam; i++)
     {

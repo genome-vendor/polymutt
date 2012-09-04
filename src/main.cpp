@@ -242,6 +242,8 @@ int main(int argc, char * argv[])
   for(int cidx=0; cidx<chrs.Length(); cidx++)
    chrs2process_map[chrs[cidx]]++;
 
+  int chrs2processCount = chrs2process_map.size();
+
   printf("Analysis started on %s\n", ctime(&t));
   Matrix pen; 
   int maxidx = 0;
@@ -250,11 +252,15 @@ int main(int argc, char * argv[])
 
   while(pedGLF.Move2NextSection())
     {
-      if(chrs2process_map.size()>0 && chrProcessedCount >= chrs2process_map.size() ) break;
+      if(chrs2process_map.size()>0 && chrProcessedCount >= chrs2processCount) break;
+
       if(!pedGLF.CheckSectionLabels(invalid_pid, invalid_fam_idx, invalid_person_idx)) {
 	fprintf(stderr, "Error: GLF of person with PID %s has invalid Section label '%s'\n", invalid_pid.c_str(), pedGLF.glf[invalid_fam_idx][invalid_person_idx].label.c_str());
 	exit(1);}
-      if(chrs2process_map.size()>0 && chrs2process_map[pedGLF.GetNonNULLglf()->label]<1) { while(pedGLF.Move2NextEntry()){}; continue;}
+
+      if(chrs2process_map.size()>0 && chrs2process_map[pedGLF.GetNonNULLglf()->label]<1) { while(pedGLF.Move2NextBaseEntry()){}; continue;}
+
+      //printf("Processing reference %s ...\n", pedGLF.GetNonNULLglf()->label.c_str());
 
       if(pedGLF.GetNonNULLglf()->label == par.chrX_label) { for(int i=0; i<7; i++) famlk[i].SetNonAutosomeFlags(true, false, false); }
       if(pedGLF.GetNonNULLglf()->label == par.chrY_label) { for(int i=0; i<7; i++) famlk[i].SetNonAutosomeFlags(false, true, false); }
@@ -464,7 +470,11 @@ int main(int argc, char * argv[])
       time_t duration = tfinished - t;
       printf("Analysis ended on %s\n", ctime(&tfinished));
       printf("Running time is %u seconds\n\n", (unsigned int)(duration));
+
+      fflush(vcfFH);
+
     }
+
   fclose(vcfFH);
   return(0);
 }
