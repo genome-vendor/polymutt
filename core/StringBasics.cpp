@@ -1,4 +1,5 @@
 #include "StringBasics.h"
+#include "InputFile.h"
 #include "Error.h"
 #include "Constant.h"
 #include "MathConstant.h"
@@ -271,7 +272,7 @@ String & String::operator = (unsigned int rhs)
    {
    Clear();
 
-   unsigned long  base = 10;
+   long long base = 10;
    int   digits = 1;
 
    while (rhs >= base)

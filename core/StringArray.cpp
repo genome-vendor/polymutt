@@ -1,4 +1,5 @@
 #include "StringArray.h"
+#include "InputFile.h"
 #include "Sort.h"
 #include "Error.h"
 
@@ -106,6 +107,10 @@ void StringArray::Read(IFILE & f)
       if (strings[count] == NULL)
          strings[count] = new String;
       strings[count]->ReadLine(f);
+
+      if (ifeof(f) && strings[count]->Length() == 0)
+         return;
+
       count++;
       }
    }
@@ -376,14 +381,24 @@ void StringArray::Trim()
 
 void StringArray::Print()
    {
+   Print(stdout);
+   }
+
+void StringArray::Print(FILE * output)
+   {
    for (int i = 0; i < count; i++)
-      printf("%s\n", (const char *) (*strings[i]));
+      fprintf(output, "%s\n", (const char *) (*strings[i]));
    }
 
 void StringArray::PrintLine()
    {
+   PrintLine(stdout);
+   }
+
+void StringArray::PrintLine(FILE * output)
+   {
    for (int i = 0; i < count; i++)
-      printf("%s%c", (const char *) (*strings[i]), i == count - 1 ? '\n' : '\t');
+      fprintf(output, "%s%c", (const char *) (*strings[i]), i == count - 1 ? '\n' : '\t');
    }
 
 void StringArray::Swap(StringArray & s)

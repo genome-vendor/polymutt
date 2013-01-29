@@ -10,6 +10,7 @@ class FastQ : public SequenceBasics
    public:
       IFILE    input;
       String   label;
+      String   shortLabel;
       String   sequence;
       String   quality;
 

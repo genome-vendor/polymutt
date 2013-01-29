@@ -10,16 +10,16 @@ endif
 SOURCE := $(wildcard *.cpp)
 OBJ = $(SOURCE:.cpp=.o)
 TARGET = polymutt
-LIB = ../core/libcore.a
+LIB = ../core/libcore.a ../base/lib-base.a ../libVcf/lib-vcf.a
+TABIX_LIB = ../third/tabix/libtabix.a
+PCRE_LIB = ../third/pcre/lib/libpcre.a
 
 all: $(TARGET)
 $(TARGET): $(OBJ)
-	g++ $(CXXFLAGS) -o $(TARGET) $(OBJ) $(LIB) -lm -lz -lgomp
+	g++ $(CXXFLAGS) -o $(TARGET) $(OBJ) $(LIB) $(TABIX_LIB) $(PCRE_LIB) -lm -lz -lgomp -lbz2
 %.o: %.cpp
-	g++ -c $(CXXFLAGS) -fopenmp -I../core $<
+	g++ -c $(CXXFLAGS) -fopenmp -I../core -I../base -I../libVcf -I../third/tabix -I../third/pcre/include $<
+
 clean:
 	rm -f *.o $(TARGET)
 
-debug:
-	g++ -c $(CXXFLAGSDEBUG) -fopenmp -I../core *.cpp
-	g++ $(CXXFLAGSDEBUG) -o $(TARGET) $(OBJ) $(LIB) -lm -lz -lgomp

@@ -102,9 +102,18 @@ class DoubleParameter : public Parameter
 
    virtual void Status();
 
+   DoubleParameter & SetPrecision(int precision)
+      {
+      this->precision = precision;
+
+      return *this;
+      }
+
    protected:
       virtual void Translate(const char * value);
       virtual bool TranslateExtras(const char * value, const char * extras);
+
+      int precision;
    };
 
 class HiddenDouble : public DoubleParameter
@@ -213,12 +222,20 @@ class LongParameters : public Parameter
 
       virtual void Status();
 
+      LongParameters * SetPrecision(int precision)
+         {
+         this->precision = precision;
+
+         return this;
+         }
+
    protected:
       StringMap index;
       StringMap legacyIndex;
 
       LongParameterList * list;
       int group_len;
+      int precision;
 
       virtual void Translate(const char * value);
       virtual bool TranslateExtras(const char * value, const char * extras);

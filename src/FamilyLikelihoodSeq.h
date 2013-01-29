@@ -11,7 +11,7 @@ class FamilyLikelihoodSeq : public NucFamGenotypeLikelihood
 {
  public:
   FamilyLikelihoodES * fam;
-  
+
  public:
   FamilyLikelihoodSeq();
   ~FamilyLikelihoodSeq();
@@ -21,6 +21,7 @@ class FamilyLikelihoodSeq : public NucFamGenotypeLikelihood
   void InitFamilyLikelihoodES();
   void FillPenetrance();
   void FillPenetrance(FamilyLikelihoodES *famlk, PedigreeGLF *pedGLF);
+  void FillPenetrance(FamilyLikelihoodSeq& sourceFamLk);
   void FillZeroPenetrance(FamilyLikelihoodES *famlk, PedigreeGLF *pedGLF, int person, int genoIdx);
   void SetNonAutosomeFlags(bool, bool, bool);
   double MonomorphismLogLikelihood_denovo(int, int);
@@ -37,6 +38,9 @@ class FamilyLikelihoodSeq : public NucFamGenotypeLikelihood
   void  CalcPostProb_SingleExtendedPed(int, double);
   void  CalcPostProb_SingleExtendedPed_BA(int, double);
   void  CalcPostProb_SingleExtendedPed_denovo(int, double);
+  void  BackupFounderCount();
+  void  MakeUnrelated();
+  void RestoreFounderCount();
 };
 
 #endif

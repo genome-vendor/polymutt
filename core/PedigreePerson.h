@@ -26,6 +26,7 @@ class Person : public PedigreeGlobals
       double *    traits;
       char *      affections;
       double *    covariates;
+      String *    strings;
 
       Person *    father;
       Person *    mother;

@@ -1,11 +1,14 @@
 TARGET = bin/polymutt
-SUBDIRS=core src
+SUBDIRS=core src base libVcf third
 
 # Build in all subdirectories.
 .PHONY: $(SUBDIRS) $(TARGET) all clean help 
 
 
 all: $(TARGET)
+	(cd third; make)
+	(cd base; make)
+	(cd libVcf; make)
 	(cd core; make)
 	(cd src; make)
 	@mkdir -p bin
@@ -14,6 +17,9 @@ all: $(TARGET)
 	@echo "Type ./$(TARGET) to invoke the command and see the command line options.\n"
 
 noopenmp: $(TARGET)
+	(cd third; make)
+	(cd base; make)
+	(cd libVcf; make)
 	(cd core; make)
 	(cd src; make -f Makefile.noopenmp)
 	@mkdir -p bin

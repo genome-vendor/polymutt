@@ -1,6 +1,8 @@
 #ifndef __INPUTFILE_H__
 #define __INPUTFILE_H__
 
+#include "StringBasics.h"
+
 #ifdef  __gnu_linux__
 #ifndef __ZLIB_AVAILABLE__
 #define __ZLIB_AVAILABLE__
@@ -15,7 +17,8 @@
 class IFILE
    {
    public:
-      bool gzMode;
+      String filename;
+      bool   gzMode;
       union
          {
          gzFile gzHandle;
@@ -35,6 +38,7 @@ class IFILE
 
    IFILE operator = (const IFILE & rhs)
       {
+      filename = rhs.filename;
       if ((gzMode = rhs.gzMode) == true)
          gzHandle = rhs.gzHandle;
       else
@@ -45,6 +49,7 @@ class IFILE
 
    IFILE operator = (FILE * rhs)
       {
+      filename = "<unknown>";
       gzMode = false;
       handle = rhs;
       return *this;
@@ -52,6 +57,7 @@ class IFILE
 
    IFILE operator = (gzFile & rhs)
       {
+      filename = "<unknown.gz>";
       gzMode = true;
       gzHandle = rhs;
       return *this;
@@ -99,6 +105,7 @@ inline unsigned int ifwrite(IFILE & file, void * buffer, unsigned int size)
 class IFILE
    {
    public:
+      String filename;
       FILE * handle;
 
       IFILE()
@@ -112,10 +119,10 @@ class IFILE
          { return handle; }
 
       IFILE & operator = (FILE * rhs)
-         { handle = rhs; return *this; }
+         { filename = ""; handle = rhs; return *this; }
 
       IFILE & operator = (const IFILE & rhs)
-         { handle = rhs.handle; return * this; }
+         { filename = rhs.filename; handle = rhs.handle; return * this; }
 
       bool operator == (void * rhs)
          {
@@ -152,7 +159,7 @@ inline unsigned int ifwrite(IFILE & file, void * buffer, unsigned int size)
 
 #endif
 
-int ifprintf(IFILE output, char * format, ...);
+int ifprintf(IFILE output, const char * format, ...);
 
 #endif
 

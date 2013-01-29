@@ -5,25 +5,30 @@
 
 #ifdef __ZLIB_AVAILABLE__
 
-IFILE::IFILE(const char * filename, const char * mode)
+IFILE::IFILE(const char * fname, const char * mode)
    {
+   // Record file name
+   filename = fname;
+
+   // Find out if the file has a .gz extension
+   int lastchar = 0;
+
+   while (filename[lastchar] != 0) lastchar++;
+
+   bool gzipExtension = (lastchar >= 3 && filename[lastchar - 3] == '.' &&
+                                          filename[lastchar - 2] == 'g' &&
+                                          filename[lastchar - 1] == 'z');
+
+   gzMode = (mode[0] == 'r') || (mode[0] == 'w') && gzipExtension;
+   gzHandle = gzMode ? gzopen(filename, mode) : NULL;
+
    // Some implementations of zlib will not open files that are
    // larger than 2Gb. To ensure support for large (uncompressed)
    // files, we fall-back on the regular fopen when the initial
    // gzopen call fails and the filename does not end in .gz
-
-   gzMode = true;
-   gzHandle = gzopen(filename, mode);
-
    if (gzHandle == NULL)
       {
-      int lastchar = 0;
-
-      while (filename[lastchar] != 0) lastchar++;
-
-      if (lastchar >= 3 && filename[lastchar - 3] == '.' &&
-                           filename[lastchar - 2] == 'g' &&
-                           filename[lastchar - 1] == 'z')
+      if (gzipExtension)
          return;
 
       gzMode = false;
@@ -33,7 +38,7 @@ IFILE::IFILE(const char * filename, const char * mode)
 
 #endif
 
-int ifprintf(IFILE output, char * format, ...)
+int ifprintf(IFILE output, const char * format, ...)
    {
 #ifdef __ZLIB_AVAILABLE__
    if (output.gzMode == true)
@@ -60,4 +65,5 @@ int ifprintf(IFILE output, char * format, ...)
 
    return result;
    }
+
 

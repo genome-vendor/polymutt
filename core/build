@@ -1,0 +1,6 @@
+gcc -c -O2 *.cpp 
+ar -crs gra-`uname -srm | awk '{print $1 "-" $2 "-" $3}'`.a *.o
+
+gcc -c -O2 *.cpp -D_FILE_OFFSET_BITS=64
+ar -crs gra-`uname -srm | awk '{print $1 "-" $2 "-" $3}'`-64.a *.o
+

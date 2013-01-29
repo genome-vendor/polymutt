@@ -84,7 +84,7 @@ void ES_Peeling::BuildInitialPeelable()
   for(int i=0; i<famSize; i++)
     { 
       if(isLeaf(i))
-	{
+	{	
 	  leaf.Push(i);
 	  continue;
 	}
@@ -219,7 +219,7 @@ void ES_Peeling::BuildPeelingOrder()
 	  if(isFinal(peelTo.first))
 	    {
 	      if(peeled.size()!=famSize-1)
-		error("Inconsistency observed!\n");
+		error("Are there disconnected sub-pedigrees in family %s? Please move sub-pedigrees to separate families.\n", family->famid.c_str() );
 	      done = true;
 	      break;
 	    }
@@ -271,6 +271,9 @@ void ES_Peeling::BuildPeelingOrder()
 	}
       if(done) break;
     }
+
+   if(peeled.size()< famSize-1)
+	error("Are there inbreeding loops in the pedigree? It cannot handel inbreeding yet!\n");
 }
 
 void ES_Peeling::BuildInitialPeelable2()
@@ -544,20 +547,27 @@ void FamilyLikelihoodES::InitValues()
   transmission = NULL;
   transmission_denovo = NULL;
   transmission_BA = NULL;
+  transmission_BA_CHRX_2Female = NULL;
+  transmission_BA_CHRX_2Male = NULL;
+  transmission_BA_CHRY = NULL;
+  transmission_BA_MITO = NULL;
   aM = NULL;
   gM = NULL;
   genoIdx.resize(3);
+  isChrX = false;
+  isChrY = false;
+  isMT = false;
 }
 
 FamilyLikelihoodES::~FamilyLikelihoodES()
 {
-if(transmission!=NULL) FreeTransmissionMatrix();
-if(transmission_denovo!=NULL) FreeTransmissionMatrix_denovo();
-if(transmission_BA!=NULL) FreeTransmissionMatrix_BA();
-if(transmission_BA_CHRX_2Female!=NULL) FreeTransmissionMatrix_BA_CHRX_2Female();
-if(transmission_BA_CHRX_2Male!=NULL) FreeTransmissionMatrix_BA_CHRX_2Male();
-if(transmission_BA_CHRY!=NULL) FreeTransmissionMatrix_BA_CHRY();
-if(transmission_BA_MITO!=NULL) FreeTransmissionMatrix_BA_MITO();
+  if(transmission!=NULL) FreeTransmissionMatrix();
+  if(transmission_denovo!=NULL) FreeTransmissionMatrix_denovo();
+  if(transmission_BA!=NULL) FreeTransmissionMatrix_BA();
+  if(transmission_BA_CHRX_2Female!=NULL) FreeTransmissionMatrix_BA_CHRX_2Female();
+  if(transmission_BA_CHRX_2Male!=NULL) FreeTransmissionMatrix_BA_CHRX_2Male();
+  if(transmission_BA_CHRY!=NULL) FreeTransmissionMatrix_BA_CHRY();
+  if(transmission_BA_MITO!=NULL) FreeTransmissionMatrix_BA_MITO();
 }
 
 void FamilyLikelihoodES::SetPedigree(Pedigree *pedptr)
@@ -570,8 +580,12 @@ void FamilyLikelihoodES::SetFamily(Family *famptr)
   family = famptr;
   famSize = family->count;
   nFounders = family->founders;
+  loglk.Dimension(famSize, 10);
+  loglk.Zero();
   penetrances.Dimension(famSize, 10);
   penetrances.Zero();
+  partials.Dimension(famSize, 10);
+  partials.Zero();
 
   sexes.resize(famSize);
   for(int i=0; i<famSize; i++)
@@ -621,13 +635,19 @@ void FamilyLikelihoodES::SetAlleles(int a1, int a2)
 
 void FamilyLikelihoodES::InitializeStates(double freq){}
 
-void FamilyLikelihoodES::SetFounderPriors(double freq)
+void FamilyLikelihoodES::SetZero(std::vector<double>& vec)
 {
-  if(allele1>4 || allele2<1 || allele2>4 || allele2<1) 
+ for(int i=0; i<vec.size(); i++) vec[i]=0.0;
+}
+
+void FamilyLikelihoodES::SetFounderPriors(double freq) //Note: need to modify for the 10 genotype case
+{
+  if(allele1>4 || allele1<1 || allele2>4 || allele2<1) 
     error("Alleles are not set: %d %d\n", allele1, allele2);
 
   for(int i=0; i<priors.size(); i++)
    {
+    SetZero(priors[i]);
     priors[i][genoIdx[0]]  = freq*freq;
     priors[i][genoIdx[1]] = 2*freq*(1-freq);
     priors[i][genoIdx[2]] = (1-freq)*(1-freq);
@@ -645,11 +665,12 @@ void FamilyLikelihoodES::SetFounderPriors(double freq)
 
 void FamilyLikelihoodES::SetFounderPriors_BA(double freq)
 {
-  if(allele1>4 || allele2<1 || allele2>4 || allele2<1) 
+  if(allele1>4 || allele1<1 || allele2>4 || allele2<1) 
     error("Alleles are not set: %d %d\n", allele1, allele2);
 
   for(int i=0; i<priors.size(); i++)
    {
+    SetZero(priors[i]);
     priors[i][0]  = freq*freq;
     priors[i][1] = 2*freq*(1-freq);
     priors[i][2] = (1-freq)*(1-freq);
@@ -955,6 +976,15 @@ void FamilyLikelihoodES::PrintPenetrance_BA()
     }
 }
 
+void FamilyLikelihoodES::PrintPriors()
+{
+ for(int i=0; i<priors.size(); i++)
+  {
+   for(int j=0; j<priors[i].size(); j++) printf(" %f",priors[i][j]);
+   printf("\n");
+  }
+}
+
 void FamilyLikelihoodES::FillPenetrance(int){}
 
 double FamilyLikelihoodES::CalculateLikelihood()
@@ -973,7 +1003,6 @@ double FamilyLikelihoodES::CalculateLikelihood()
   
   int final = es.to[es.from.size()-1].first;
   double lk = 0.0;
-  
   for(int i=0; i<10; i++)
     lk+=partials[final][i];
   
@@ -993,10 +1022,9 @@ double FamilyLikelihoodES::CalculateLikelihood_BA()
       case 3:  { peelParents2Offspring_BA(i); break; }
       default: { error("Peeling type error!\n"); }
       }
-  
   int final = es.to[es.from.size()-1].first;
   double lk = 0.0;
-  
+
   for(int i=0; i<3; i++)
     lk+=partials[final][i];
   
@@ -1030,7 +1058,7 @@ double FamilyLikelihoodES::CalculateLikelihood_denovo()
 
 double FamilyLikelihoodES::GetTransmissionProb_BA(int i, int j, int k, int idx)
 {
-        double transmit;
+        double transmit = transmission_BA[i][j][k];
 
 	if(isChrX)
          if(sexes[idx]==MALE) transmit = transmission_BA_CHRX_2Male[i][j][k];
@@ -1068,6 +1096,7 @@ void FamilyLikelihoodES::peelOffspring2Parents(int idx)
 	  {
 	    partial_lk_sum += transmission[i][j][k]*partials[offspring][k];
 	  }
+
 	marriage_partials[es.to[idx]][i][j] *= partial_lk_sum;
       }
 }
@@ -1097,7 +1126,7 @@ void FamilyLikelihoodES::peelOffspring2Parents_BA(int idx)
 	    partial_lk_sum += transmit*partials[offspring][k];
 	  }
 	marriage_partials[es.to[idx]][i][j] *= partial_lk_sum;
-      }
+      } 
 }
 
 void FamilyLikelihoodES::peelSpouse2Spouse(int idx)
@@ -1225,7 +1254,6 @@ void FamilyLikelihoodES::peelParents2Offspring(int idx)
 	    partial_lk_sum += partials[fa][i] * marriage_partials[es.from[idx]][i][j] * partials[mo][j] * transmission[i][j][k];  
       
       partials[offspring][k] *= partial_lk_sum;
-      
     } 
 }
 
@@ -1254,7 +1282,6 @@ void FamilyLikelihoodES::peelParents2Offspring_BA(int idx)
 	    partial_lk_sum += partials[fa][i] * marriage_partials[es.from[idx]][i][j] * partials[mo][j] * GetTransmissionProb_BA(i, j, k, offspring);  
       
       partials[offspring][k] *= partial_lk_sum;
-      
     } 
 }
 
@@ -1404,9 +1431,8 @@ void FamilyLikelihoodES::SetMarriagePartials_BA(std::pair<int, int>& parents)
   marriage_partials[parents] = partial;    
 }
 
-void FamilyLikelihoodES::InitializePartials()
+void FamilyLikelihoodES::InitializePartials() //Note: this is for de novo now and no non-autosomes are handled
 {
-  partials.Dimension(famSize, 10);  
   partials.Zero();  
   for(int i=0; i<famSize; i++)
     {
@@ -1422,20 +1448,19 @@ void FamilyLikelihoodES::InitializePartials()
 
 void FamilyLikelihoodES::InitializePartials_BA()
 {
-  partials.Dimension(famSize, 3);  
   partials.Zero();
   for(int i=0; i<famSize; i++)
     {
       if(ped->persons[family->path[i]]->isFounder())
         for(int j=0; j<3; j++)
          //partials[i][j] = priors[i][j]*penetrances[i][genoIdx[j]];
-         partials[i][j] = isChrY && sexes[i]==FEMALE ? 1.0 : priors[i][j]*penetrances[i][genoIdx[j]];
+         partials[i][j] = (isChrY && sexes[i]==FEMALE) ? 1.0 : priors[i][j]*penetrances[i][genoIdx[j]];
 
       else
         for(int j=0; j<3; j++)
-	  partials[i][j] = isChrY && sexes[i]==FEMALE ? 1.0: penetrances[i][genoIdx[j]];
+	 { partials[i][j] = (isChrY && sexes[i]==FEMALE) ? 1.0: penetrances[i][genoIdx[j]];
 	  //partials[i][j] = penetrances[i][genoIdx[j]];
-
+        }
     }
 }
 

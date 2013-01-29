@@ -105,7 +105,7 @@ void SwitchParameter::Status()
 
 DoubleParameter::DoubleParameter(char c, const char * desc, double & v)
       : Parameter(c, desc, &v)
-      {}
+      { precision = 2; }
 
 void DoubleParameter::Translate(const char * value)
    {
@@ -133,8 +133,8 @@ void DoubleParameter::Status()
       printf("%*s : %*s (-%c99.999)\n", nameCol, description,
           statusCol, "NAN", ch);
    else if (absolute_value >= 0.00095)
-      printf("%*s : % *.3f (-%c99.999)\n", nameCol, description,
-          statusCol, * (double *) var, ch);
+      printf("%*s : % *.*f (-%c99.999)\n", nameCol, description,
+          statusCol, precision, * (double *) var, ch);
    else if (absolute_value <= 1e-15)
       printf("%*s : % *.0f (-%c99.999)\n", nameCol, description,
           statusCol, * (double *) var, ch);
@@ -293,6 +293,8 @@ LongParameters::LongParameters(const char * desc, LongParameterList * lst)
 
       ptr++;
       }
+
+   precision = 2;
    }
 
 void LongParameters::ExplainAmbiguity(const char * cstr)
@@ -459,7 +461,7 @@ void LongParameters::Status(LongParameterList * ptr, int & line_len, bool & need
 
             state = " [";
             if (value == 0.0 || value >= 0.01)
-               state.catprintf("%.2f", value);
+               state.catprintf("%.*f", precision, value);
             else
                state.catprintf("%.1e", value);
             state += ']';

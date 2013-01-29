@@ -30,6 +30,12 @@ int FastQ::Load(IFILE & input, String & label, String & sequence, String & quali
    else
       label.ReadLine(input);
 
+   int delim = label.FindChar(' ');
+   if (delim > 0)
+      shortLabel = label.SubStr(1, delim);
+   else
+      shortLabel = label.SubStr(1);
+
    // printf("LABEL: %s\n", (const char *) label);
 
    if (input == NULL || ifeof(input))

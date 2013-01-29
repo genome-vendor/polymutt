@@ -1,4 +1,5 @@
 #include "StringHash.h"
+#include "InputFile.h"
 #include "Error.h"
 
 StringHash::StringHash(int startsize)
@@ -556,7 +557,7 @@ String StringHash::StringList(char separator)
 
    for (unsigned int i = 0; i < size; i++)
       if (SlotInUse(i))
-         list += *strings[i] + ',';
+         list += *strings[i] + separator;
 
    list.SetLength(list.Length() - 1);
 

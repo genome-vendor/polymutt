@@ -92,13 +92,14 @@ public:
 //This class has the pedigree information and also the GLF handlers for each person
 class PedigreeGLF
 {
-private:
+ public:
   int nFam;
   int nPerson; 
   String glfFileKey;
   glfHandler * nonNULLglf;
   int nonNullIndex_i, nonNullIndex_j;  
   String nonNullPID;
+  bool isVCFInput;
 
  public:
   unsigned char refBase;
@@ -114,6 +115,7 @@ private:
   PedigreeGLF();
   PedigreeGLF(Pedigree *);
   ~PedigreeGLF();
+  void SetVCFInputFlag(bool v) { isVCFInput = v; }
   void InitializeGLFHandler(Pedigree *);
   glfHandler * GetNonNULLglf();
   void SetPedGLF(Pedigree * );
