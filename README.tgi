@@ -1,0 +1,5 @@
+To build this package, you'll first need to download tabix-0.2.5.tar.bz2 (from
+the tabix sourceforge page) and place it in the subdirectory third/.
+
+Ideally, someone should make a libtabix-dev package and update the source code
+here to use that.
