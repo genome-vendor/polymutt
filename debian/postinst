@@ -2,7 +2,7 @@
 set -e
 
 PKG="polymutt"
-VER="0.10"
+VER="0.13"
 PKG_DIR=/usr/lib/${PKG}${VER}
 TEST_EXE=polymutt
 
