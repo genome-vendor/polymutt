@@ -13,6 +13,7 @@ void NucFamGenotypeLikelihood::InitializeValues()
   prior = 0.0;
   priorFreq = 0.0;
   theta = 0.001;
+  theta_indel = 0.0001;
   totalDepth = 0;
   avgMapQual = 0.0;
   avgDepth = 0.0;
@@ -30,6 +31,7 @@ void NucFamGenotypeLikelihood::InitializeValues()
   postProb = NULL ;
   dosage = NULL;
   bestGenoIdx = NULL;
+  bestGenoQual = NULL;
   bestGenoLabel = NULL;  
   varllk.resize(8);
   varllk_noprior.resize(8);
@@ -41,6 +43,8 @@ void NucFamGenotypeLikelihood::InitializeValues()
   isChrX = false;
   isChrY = false;
   isMT = false;
+  isIndel = false;
+  isMono = false;
 }
 
 NucFamGenotypeLikelihood::NucFamGenotypeLikelihood()
@@ -66,8 +70,9 @@ void NucFamGenotypeLikelihood::SetGLF(PedigreeGLF *pedglf)
 {
   pedGLF = pedglf;
   ped = pedglf->ped;
+
   nFam = pedglf->GetFamCount();
-  nPerson = pedGLF->ped->count;
+  nPerson = pedglf->ped->count;
   nFounders = pedGLF->nFounders;
   InitializeTransmissionProb();
   InitializeParentMarginal();
@@ -183,12 +188,14 @@ void NucFamGenotypeLikelihood::InitializePostProb()
 {
   postProb = new double **[nFam];
   bestGenoIdx = new int *[nFam];
+  bestGenoQual = new int *[nFam];
   bestGenoLabel = new String *[nFam];
   dosage = new double *[nFam];
   for(int i=0; i<nFam; i++)
     {
       postProb[i] = new double *[pedGLF->ped->families[i]->count];
       bestGenoIdx[i] = new int[pedGLF->ped->families[i]->count];
+      bestGenoQual[i] = new int[pedGLF->ped->families[i]->count];
       bestGenoLabel[i] = new String[pedGLF->ped->families[i]->count];
       dosage[i] = new double[pedGLF->ped->families[i]->count];
 
@@ -196,6 +203,7 @@ void NucFamGenotypeLikelihood::InitializePostProb()
 	{
 	  postProb[i][j] = new double[10];
 	  bestGenoIdx[i][j] = 0;
+	  bestGenoQual[i][j] = 0;
 	  bestGenoLabel[i][j] = "";
 	  for(int k=0; k<10; k++)
 	    postProb[i][j][k] = 0.0;
@@ -210,24 +218,39 @@ void NucFamGenotypeLikelihood::DeletePostProb()
       delete [] postProb[i][j];
     }
     delete [] bestGenoIdx[i];
+    delete [] bestGenoQual[i];
     delete [] bestGenoLabel[i];
     delete [] postProb[i];
   }
 }
 void NucFamGenotypeLikelihood::SetTheta(double thetaValue)
 {theta = thetaValue;}
+void NucFamGenotypeLikelihood::SetTheta_indel(double thetaValue)
+{theta_indel = thetaValue;}
 
 void NucFamGenotypeLikelihood::SetPolyPrior()
 {
   prior = 0;
   if(nFounders==0)
     error("Family size is zero\n");
-  
+
   for(int i=1; i<=2*nFounders; i++) //number of chromosomes
     prior += 1.0 / i;
-  priorFreq = 1-1./prior;
-  prior *= theta;  
-  
+  priorFreq = isIndel ? 1-1./prior_indel : 1-1./prior;
+  prior *= isIndel ? theta_indel : theta;
+
+}
+
+void NucFamGenotypeLikelihood::SetPolyPrior_indel()
+{
+  prior_indel = 0;
+  if(nFounders==0)
+    error("Family size is zero\n");
+
+  for(int i=1; i<=2*nFounders; i++) //number of chromosomes
+    prior_indel += 1.0 / i;
+  priorFreq = 1-1./prior_indel;
+  prior_indel *= theta_indel;
 }
 
 void NucFamGenotypeLikelihood::SetPolyPrior_chrX()
@@ -269,14 +292,32 @@ void NucFamGenotypeLikelihood::SetPolyPrior_MT()
   
 }
 
-double NucFamGenotypeLikelihood::GetPolyPrior() { return(prior); }
+double NucFamGenotypeLikelihood::GetPolyPrior() {
+// if(prior==0.0) 
+ {
+  if(isChrX) SetPolyPrior_chrX(); 
+  else if(isChrY) SetPolyPrior_chrY(); 
+  else if(isMT) SetPolyPrior_MT(); 
+  else SetPolyPrior();
+  return(prior);
+ }
+}
+double NucFamGenotypeLikelihood::GetPolyPrior_unr() {
+  if(isChrX) SetPolyPrior_chrX(); 
+  else if(isChrY) SetPolyPrior_chrY(); 
+  else if(isMT) SetPolyPrior_MT(); 
+  else SetPolyPrior();
+  return(prior);
+}
+
+double NucFamGenotypeLikelihood::GetPolyPrior_indel() { if(prior==0.0) SetPolyPrior_indel(); return(prior); }
 double NucFamGenotypeLikelihood::GetPriorFreq() { return priorFreq; }
 void NucFamGenotypeLikelihood::SetMleFreqFlag(bool b) { useMleFreq = b; }
 void NucFamGenotypeLikelihood::SetPriorFreqFlag(bool b) { usePriorFreq = b; }
 
 void NucFamGenotypeLikelihood::SetParentPrior(double freq)
 {
-  if(nFam>1) {
+  if(nFam>1 || isMono) {
    if(!isChrX && !isChrY && !isMT)
    {
     parentPrior[0] = pow(freq,4);
@@ -390,9 +431,10 @@ double NucFamGenotypeLikelihood::f(double freq)
 
 double NucFamGenotypeLikelihood::OptimizeFrequency()
 {
-  a = 0.0001; 
+  a = 0.0001;
   fa = f(a);
-  b = 0.9999; 
+  b = 0.9999;
+
   fb = f(b);
   c = 0.5; fc = f(c);
 
@@ -508,6 +550,24 @@ void NucFamGenotypeLikelihood::CalcDosage(int a1, int a2, double freq)
   CalcPostProb(freq);
 }
 
+void NucFamGenotypeLikelihood::CalcGQ()
+{
+  int bestIdx;
+  double GTQual;
+
+  AC = 0;
+  for(int i=0; i<nFam; i++)
+   for(int j=0; j<ped->families[i]->count; j++)
+    {
+        bestIdx = bestGenoIdx[i][j];
+        if(postProb[i][j][bestIdx]>0.9999999999) GTQual = 100;
+        else GTQual = int(-10.*log10(1.-postProb[i][j][bestIdx])+0.5);
+	bestGenoQual[i][j] = GTQual;
+
+	AC += bestIdx;
+     }
+}
+
 void NucFamGenotypeLikelihood::GetBestGenotype(int a1, int a2, double freq)
 {}
 
@@ -518,6 +578,13 @@ void NucFamGenotypeLikelihood::CalcPostProb(double freq)
     CalcPostProb_SingleNucFam(i, freq);
    else
     CalcPostProb_SingleNucFam_denovo(i, freq);
+}
+
+void NucFamGenotypeLikelihood::CalcPostProb_mono(double freq)
+{
+  for(int i=0; i<nFam; i++)
+   for(int j=0; j<pedGLF->ped->families[i]->count; j++)
+    CalcPostProb_SinglePerson(i, j, freq);
 }
 
 void NucFamGenotypeLikelihood::CalcPostProb_SingleNucFam(int i, double freq)
@@ -597,6 +664,7 @@ void NucFamGenotypeLikelihood::CalcPostProb_SingleNucFam(int i, double freq)
 	    //bestGenoLabel[i][j] = GetBestGenoLabel(best);
 	    dosage[i][j] = CalcDosage(i,j);
 	  }  //kids
+
       } //END of for loop
 }
 
@@ -880,7 +948,7 @@ double NucFamGenotypeLikelihood::lkSingleFam(int i, double freq)
    return lk;
   }
   double sum = 0.0;
-  
+
   CalcParentMarginal(i, freq);
   for(int idx=0; idx<9; idx++)
     sum += parentMarginal[i][idx]; //Note that Marginals here are joint likelihood of parents marginalizing offspring
@@ -993,9 +1061,9 @@ void NucFamGenotypeLikelihood::CalcParentMarginal(int i, double freq)
   parentGLF[i][8] = lkF22*lkM22;
 
 
-  if(nFam>1)
+  if(nFam>1 || isMono)
     SetParentPrior(freq);
-  else 
+  else
     SetParentPriorSingleTrio();
 
   parentConditional[i][0] = likelihoodKids(allele1,allele1,allele1,allele1, i)*parentGLF[i][0];
@@ -1140,7 +1208,7 @@ double NucFamGenotypeLikelihood::likelihoodONEKid(glfHandler *glf, int fa1, int 
 
       // father 1/1
       if(fa1==allele1 && fa2==allele1 && ma1==allele1 && ma2==allele1)
-	{ lk = sex==MALE ? lk11 : 1.0; }
+	{ lk = (isChrY && sex==FEMALE) ? 1.0: lk11; }
       else if(fa1==allele1 && fa2==allele1 && ma1==allele1 && ma2==allele2) 
 	{
 	if(isChrX)
@@ -1190,7 +1258,7 @@ double NucFamGenotypeLikelihood::likelihoodONEKid(glfHandler *glf, int fa1, int 
 	  lk = 0.5 * (lk11 + lk22);
 	else lk = 0.5 * (lk12 + lk22);
       else if(fa1==allele2 && fa2==allele2 && ma1==allele2 && ma2==allele2) 
-	 lk = sex==MALE ? lk22 : 1.0;       /*kidsCondLikelihood[famIdx][i][8] = lk;*/ 
+	 lk = (isChrY && sex==FEMALE) ? 1.0 : lk22;       /*kidsCondLikelihood[famIdx][i][8] = lk;*/ 
       
   return(lk);
 }
@@ -1593,6 +1661,27 @@ int NucFamGenotypeLikelihood::CalcMaxLogLkIdx(std::vector<double> &loglk, int n)
   return(idx);
 }
 
+int NucFamGenotypeLikelihood::CalcMaxLogLkAlt(std::vector<double> &loglk, int m, int n)
+{
+  int idx = m;
+  double max = loglk[m];
+
+  for(int i=m; i<4; i++){
+    if(max<loglk[i]) {
+      max = loglk[i];
+      idx = i;
+    }
+  }
+  switch(idx)
+  {
+   case 0: return(pedGLF->refBase);
+   case 1: return(Poly::ts(pedGLF->refBase));
+   case 2: return(Poly::tvs1(pedGLF->refBase));
+   case 3: return(Poly::tvs2(pedGLF->refBase));
+   default: error("Index over 3\n");
+  }
+}
+
 double NucFamGenotypeLikelihood::CalcSum(std::vector<double> &ratio)
 {
   double sum = 0.0;
@@ -1620,10 +1709,9 @@ int NucFamGenotypeLikelihood::CalcVarPosterior(int n)
   double sumRatio = CalcSum(ratio);
   varPostProb = 1/sumRatio;
   
-  if(varPostProb<par->posterior) return(-1);
-  
   if(maxidx==0){
-    allele1 = allele2 = pedGLF->refBase; 
+    allele1 = pedGLF->refBase;
+    allele2 = CalcMaxLogLkAlt(varllk, 1, n);
   }
   else if(maxidx==1){
     allele1 = pedGLF->refBase; allele2 = ts; 
@@ -1643,10 +1731,10 @@ int NucFamGenotypeLikelihood::CalcVarPosterior(int n)
   else if(maxidx==6){
     allele1 = tvs1; allele2 = tvs2; 
   }
-  
+
   SetAlleles(allele1, allele2);
-  SetMleFreq(varfreq[maxidx]);
-  SetParentPrior(varfreq[maxidx]);
+  //SetMleFreq(varfreq[maxidx]);
+  //SetParentPrior(varfreq[maxidx]);
   CalcPolyQual(varPostProb);
 
   return(maxidx);
@@ -1666,6 +1754,7 @@ void NucFamGenotypeLikelihood::OutputVCF(FILE * fh)
     time_t t; time(&t);
     fprintf(fh, "##fileformat=VCFv4.0\n");
     fprintf(fh, "##fileDate=%s", ctime(&t));
+    fprintf(fh, "##command=%s\n", par->cmd.c_str());
     fprintf(fh, "##minMapQuality=%f\n", par->minMapQuality);
     fprintf(fh, "##minTotalDepth=%d\n", par->minTotalDepth);
     fprintf(fh, "##maxTodalDepth=%d\n", par->maxTotalDepth);
@@ -1673,13 +1762,16 @@ void NucFamGenotypeLikelihood::OutputVCF(FILE * fh)
     fprintf(fh, "##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of Samples With Data\">\n");
     fprintf(fh, "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Percentage of Samples With Data\">\n");
     fprintf(fh, "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total Read Depth\">\n");
+    fprintf(fh, "##INFO=<ID=MQ,Number=1,Type=Float,Description=\"Average Map Quality\">\n");
     if(nFam>1 || ped->families[0]->isNuclear()==false) 
     fprintf(fh, "##INFO=<ID=AF,Number=.,Type=Float,Description=\"Reference Allele Frequency\">\n");
     fprintf(fh, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
     fprintf(fh, "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n");
     fprintf(fh, "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth\">\n");
-    fprintf(fh, "##FORMAT=<ID=DS,Number=1,Type=Float, Description=\"Dosage: Defined As the Expected Alternative Allele Count\">\n");
-    if(!par->gl_off) fprintf(fh, "##FORMAT=<ID=GL,Number=3,Type=Unsigned Char, Description=\"Genotype Likelihoods\">\n");
+    fprintf(fh, "##FORMAT=<ID=DS,Number=1,Type=Float,Description=\"Dosage: Defined As the Expected Alternative Allele Count\">\n");
+    if(!par->gl_off) fprintf(fh, "##FORMAT=<ID=PL,Number=10,Type=Integer,Description=\"Phred-scaled Genotype Likelhood\">\n");
+    if(par->force_call) fprintf(fh, "##FORMAT=<ID=BA,String,Description=\"Best Alterantive Allele\">\n");
+
     fprintf(fh, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
 
     for(int i=0; i<nFam; i++)
@@ -1694,6 +1786,8 @@ void NucFamGenotypeLikelihood::OutputVCF(FILE * fh)
     vcf = true;
   }
 
+  char bases[5]  = {'0', 'A', 'C', 'G', 'T'};
+
   if(!isChrX && !isChrY && !isMT) CalculateAB(GetMinimizer()); 
 
   String FILTER;
@@ -1701,16 +1795,17 @@ void NucFamGenotypeLikelihood::OutputVCF(FILE * fh)
 
   String INFO;
   if(nFam==1 && ped->families[0]->isNuclear())
-   INFO.printf("NS=%d;PS=%.1f;DP=%d", numSampWithData, percSampWithData*100, totalDepth);
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual);
   else if(isChrX || isChrY || isMT)
-   INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer());
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f;AF=%.4f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual, GetMinimizer());
   else
-  INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f;AB=%.3f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer(), AB);
+  INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f;AF=%.4f;AB=%.3f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual, GetMinimizer(), AB);
 
-  String FORMAT = "GT:GQ:DP:DS"; if(!par->gl_off) FORMAT+=":GL";
-  char bases[5]  = {'0', 'A', 'C', 'G', 'T'};
+  if(isMono) { INFO += ";BA="; INFO += bases[allele2]; }
+
+  String FORMAT = "GT:GQ:DP:DS"; if(!par->gl_off) FORMAT+=":PL";
   String alt;
-  if(pedGLF->refBase==allele1) alt = bases[allele2]; else alt = alt+bases[allele1]+","+bases[allele2];
+  if(pedGLF->refBase==allele1) alt = bases[isMono ? allele1 : allele2]; else alt = alt+bases[allele1]+","+bases[allele2];
 
   fprintf(fh, "%s\t%d\t%s\t%c\t%s\t%d\t%s\t%s\t%s", pedGLF->GetNonNULLglf()->label.c_str(), pedGLF->currentPos+1, ".", bases[pedGLF->refBase], alt.c_str(), int(polyQual+0.5), FILTER.c_str(), INFO.c_str(), FORMAT.c_str());
  
@@ -1731,7 +1826,7 @@ void NucFamGenotypeLikelihood::OutputVCF(FILE * fh)
 	if(!par->gl_off)fprintf(fh, ":%u,%u,%u", llk11, llk12, llk22);
 
       }
-  fprintf(fh, "\n");
+  fprintf(fh, "\n"); fflush(fh);
 }
 
 void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
@@ -1740,6 +1835,7 @@ void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
     time_t t; time(&t);
     fprintf(fh, "##fileformat=VCFv4.0\n");
     fprintf(fh, "##fileDate=%s", ctime(&t));
+    fprintf(fh, "##command=%s\n", par->cmd.c_str());
     fprintf(fh, "##minMapQuality=%f\n", par->minMapQuality);
     fprintf(fh, "##minTotalDepth=%d\n", par->minTotalDepth);
     fprintf(fh, "##maxTodalDepth=%d\n", par->maxTotalDepth);
@@ -1747,13 +1843,14 @@ void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
     fprintf(fh, "##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of Samples With Data\">\n");
     fprintf(fh, "##INFO=<ID=PS,Number=1,Type=Integer,Description=\"Percentage of Samples With Data\">\n");
     fprintf(fh, "##INFO=<ID=DP,Number=1,Type=Integer,Description=\"Total Read Depth\">\n");
+    fprintf(fh, "##INFO=<ID=MQ,Number=1,Type=Float,Description=\"Average Map Quality\">\n");
     if(nFam>1 || ped->families[0]->isNuclear()==false) 
     fprintf(fh, "##INFO=<ID=AF,Number=.,Type=Float,Description=\"Reference Allele Frequency\">\n");
-    fprintf(fh, "##INFO=<ID=DQ,Number=1,Type=Float, Description=\"De Novo Mutation Quality\">\n");
+    fprintf(fh, "##INFO=<ID=DQ,Number=1,Type=Float,Description=\"De Novo Mutation Quality\">\n");
     fprintf(fh, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n");
     fprintf(fh, "##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype Quality\">\n");
     fprintf(fh, "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth\">\n");
-    if(!par->gl_off) fprintf(fh, "##FORMAT=<ID=GL,Number=10,Type=Unsigned Char, Description=\"Genotype Likelihoods\">\n");
+    if(!par->gl_off) fprintf(fh, "##FORMAT=<ID=PL,Number=10,Type=Integer,Description=\"Phred-scaled Genotype Likelhood\">\n");
     fprintf(fh, "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
 
     for(int i=0; i<nFam; i++)
@@ -1764,7 +1861,7 @@ void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
 	  String pid =  pedGLF->ped->persons[idx]->pid;
 	  fprintf(fh, "\t%s", (const char*)pid);
 	}
-    fprintf(fh, "\n");
+    fprintf(fh, "\n"); fflush(fh);
     vcf = true;
   }
 
@@ -1779,18 +1876,18 @@ void NucFamGenotypeLikelihood::OutputVCF_denovo(FILE * fh)
   String INFO;
 
   if(nFam==1 && ped->families[0]->isNuclear())
-   INFO.printf("NS=%d;PS=%.1f;DP=%d;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, denovoLR);
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual, denovoLR);
   else
-   INFO.printf("NS=%d;PS=%.1f;DP=%d;AF=%.4f;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, GetMinimizer(), denovoLR);
+   INFO.printf("NS=%d;PS=%.1f;DP=%d;MQ=%.1f;AF=%.4f;DQ=%.3f", numSampWithData, percSampWithData*100, totalDepth, avgMapQual, GetMinimizer(), denovoLR);
 
-  String FORMAT = "GT:GQ:DP"; if(par->gl_off==false) FORMAT+=":GL";
+  String FORMAT = "GT:GQ:DP"; if(par->gl_off==false) FORMAT+=":PL";
   char bases[5]  = {'0', 'A', 'C', 'G', 'T'};
   String alt;
   if(pedGLF->refBase==allele1) alt = bases[allele2]; else alt = alt+bases[allele1]+","+bases[allele2];
 
   fprintf(fh, "%s\t%d\t%s\t%c\t%s\t%d\t%s\t%s\t%s", pedGLF->GetNonNULLglf()->label.c_str(), pedGLF->currentPos+1, ".", bases[pedGLF->refBase], alt.c_str(), int(polyQual+0.5), FILTER.c_str(), INFO.c_str(), FORMAT.c_str());
 
-  int GTQual = 0.0;
+  int GTQual = 0;
   int bestIdx = 0;
   const unsigned char *ptrlk;
 

@@ -35,6 +35,10 @@ class StringArray
       void Print();
       void PrintLine();
 
+      // Write all strings to a file
+      void Print(FILE * f);
+      void PrintLine(FILE * f);
+
       void Grow(int newsize);
       void Clear();
 

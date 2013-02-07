@@ -8,4 +8,4 @@ To remove excutables type:
  make clean
 
 To try it on test files (in ./example subdirctory) type the folllowing commands:
- make test
+ ./run.sh

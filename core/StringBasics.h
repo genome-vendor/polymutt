@@ -12,7 +12,13 @@
 #define String      BasicString
 #endif
 
-#include "InputFile.h"
+#ifdef  __gnu_linux__
+#ifndef __ZLIB_AVAILABLE__
+#define __ZLIB_AVAILABLE__
+#endif
+#endif
+
+class IFILE;
 
 class String
    {
@@ -47,7 +53,7 @@ class String
       String & Copy(const String & s, int start, int count);
       String & Copy(const char * s);
 
-      bool     IsEmpty() { return len == 0; }
+      bool     IsEmpty() const { return len == 0; }
       String & ToUpper();
       String & ToLower();
       String   AsUpper();

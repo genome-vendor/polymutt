@@ -76,6 +76,7 @@ class FamilyLikelihoodES
  ES_Peeling es;
  
  std::vector<std::vector<double> > priors;
+ Matrix loglk;
  Matrix penetrances;
  Matrix states; //indices of genotypes
  vector<double> ** transmission;
@@ -98,6 +99,7 @@ class FamilyLikelihoodES
  void SetFamilyIndex(int);
  void PreparePeeling();
  bool isPhenotyped(int);
+ void SetZero(std::vector<double>& vec);
  void SetAlleles(int a1, int a2);
  void SetFounderPriors(double);
  void SetFounderPriors_BA(double);
@@ -129,6 +131,7 @@ class FamilyLikelihoodES
  void FillPenetrance(int);
  void PrintPenetrance();
  void PrintPenetrance_BA();
+ void PrintPriors();
  double CalculateLikelihood();
  double CalculateLikelihood_BA();
  double CalculateLikelihood_denovo();

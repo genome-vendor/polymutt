@@ -2,6 +2,7 @@
 #define __FORTRAN_FORMAT__
 
 #include "StringBasics.h"
+#include "InputFile.h"
 #include "IntArray.h"
 
 class FortranFormat

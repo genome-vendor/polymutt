@@ -223,6 +223,21 @@ void Pedigree::Load(IFILE & input)
                if ( new_covar != _NAN_) p->covariates[c] = new_covar;
                break;
                }
+            case pcString :
+               {
+               int c = pd.columnHash[col];
+
+               if (!p->strings[c].IsEmpty() && p->strings[c] != tokens[field])
+                  error("Conflict with previous value - Col %d, String %s\n"
+                        "Family: %s  Individual: %s  Old: %s New: %s",
+                        col, (const char *) stringNames[c],
+                        (const char *) p->famid, (const char *) p->pid,
+                        (const char *) p->strings[c], (const char *) tokens[field]);
+
+               p->strings[c] = tokens[field++];
+
+               break;
+               }
             case pcSkip :
                field++;
                break;

@@ -91,9 +91,11 @@ class Vector
    void   AveVar(double & ave, double & var) const;
    double Average() const;
    double Var() const;
+   double StandardDeviation() const;
 
    double Average(double returnIfNull);
    double Var(double returnIfNull);
+   double StandardDeviation(double returnIfNull);
 
    // Common descriptive functions
    double Sum() const;

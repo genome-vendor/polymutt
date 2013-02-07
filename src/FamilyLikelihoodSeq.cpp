@@ -16,7 +16,8 @@ void FamilyLikelihoodSeq::InitFamilyLikelihoodES()
   fam = new FamilyLikelihoodES[nFam];
   for(int i=0; i<nFam; i++)
     {
-      if(ped->families[i]->count==ped->families[i]->founders) continue;
+//      if(ped->families[i]->count==ped->families[i]->founders) continue;
+
       fam[i].SetPedigree(ped);
       fam[i].SetFamily(ped->families[i]);
       fam[i].SetFamilyIndex(i);
@@ -26,13 +27,42 @@ void FamilyLikelihoodSeq::InitFamilyLikelihoodES()
       fam[i].SetTransmissionMatrix_BA_CHRX_2Male();
       fam[i].SetTransmissionMatrix_BA_CHRY();
       fam[i].SetTransmissionMatrix_BA_MITO();
-      fam[i].PreparePeeling();
+      if(par->denovo){ fam[i].SetGenotypeMutationModel(&gM);
+        fam[i].SetTransmissionMatrix_denovo(); }
+      if(ped->families[i]->count!=ped->families[i]->founders) fam[i].PreparePeeling();
+//fam[i].es.PrintPeelable();
+//fam[i].es.PrintPeelingOrder();
+
     }
 }
 
 double FamilyLikelihoodSeq::f(double freq)
 {
   return(-(CalcAllFamLogLikelihood(freq)));
+}
+
+void FamilyLikelihoodSeq::BackupFounderCount()
+{
+ if(backupFounderCount.size()==0)
+ {
+  backupFounderCount.resize(pedGLF->ped->familyCount);
+  for(int i=0; i < pedGLF->ped->familyCount; i++)
+   backupFounderCount[i] = pedGLF->ped->families[i]->founders;
+ }
+}
+
+void FamilyLikelihoodSeq::MakeUnrelated()
+{
+ if(backupFounderCount.size()==0) error("Founder count not backed up yet!\n");
+ for(int i=0; i < pedGLF->ped->familyCount; i++)
+   pedGLF->ped->families[i]->founders = pedGLF->ped->families[i]->count;
+}
+
+void FamilyLikelihoodSeq::RestoreFounderCount()
+{
+ if(backupFounderCount.size()==0) error("backupFounderCount has not been allocated memory");
+ for(int i=0; i < pedGLF->ped->familyCount; i++)
+  pedGLF->ped->families[i]->founders = backupFounderCount[i];
 }
 
 double FamilyLikelihoodSeq::MonomorphismLogLikelihood_denovo(int refBase, int alt)
@@ -100,7 +130,7 @@ void FamilyLikelihoodSeq::CalcPostProb_SingleExtendedPed(int i, double freq)
 	if(max<lk[k]) { max=lk[k]; best=k; }
 
       bestGenoIdx[i][j] = best;       
-      bestGenoLabel[i][j] = GetBestGenoLabel(best);
+      bestGenoLabel[i][j] = GetBestGenoLabel_denovo(best); //This is correct for the 10 genotpye case
       
     }
     
@@ -192,19 +222,24 @@ double FamilyLikelihoodSeq::CalcAllFamLikelihood(double freq)
 double FamilyLikelihoodSeq::CalcAllFamLogLikelihood(double freq)
 {
   double loglk = 0.0;
-
 #pragma omp parallel for reduction(+:loglk)
   for(int i=0; i<nFam; i++)
     {
       if(ped->families[i]->isNuclear() || ped->families[i]->count==ped->families[i]->founders)
-	loglk += par->denovo ? logLkSingleFam_denovo(i, freq) : logLkSingleFam(i, freq);
+{	loglk += par->denovo ? logLkSingleFam_denovo(i, freq) : logLkSingleFam(i, freq); 
+//	if(par->denovo) printf("Nuc fam de novo %d lk=%f\n", i, logLkSingleFam_denovo(i, freq) );
+//	else printf("Nuc fam %d lk=%f\n", i, logLkSingleFam(i, freq) ); 
+}
       else
-	loglk +=  par->denovo ? CalcSingleFamLogLikelihood_denovo(i, freq) :  CalcSingleFamLogLikelihood_BA(i, freq);
+{	loglk +=  par->denovo ? CalcSingleFamLogLikelihood_denovo(i, freq) :  CalcSingleFamLogLikelihood_BA(i, freq); 
+//	if(par->denovo) printf("Ext fam de novo %d lk=%f\n", i, CalcSingleFamLogLikelihood_denovo(i, freq) );
+//	else printf("Ext fam %d lk=%f\n", i, CalcSingleFamLogLikelihood_BA(i, freq) );
+ }
     }
   return(loglk);
 }
 
-// key function and most of calculations are here
+// key function and most of calculations are here. Note: this is for the 10 genotype case and not used yet
 double FamilyLikelihoodSeq::CalcSingleFamLikelihood(int i, double freq)
 {
   double lk=1.0;
@@ -213,7 +248,7 @@ double FamilyLikelihoodSeq::CalcSingleFamLikelihood(int i, double freq)
   fam[i].SetFounderPriors(freq);
   fam[i].InitializePartials();
   lk = fam[i].CalculateLikelihood();
-  
+
   return(lk);
 }
 
@@ -226,7 +261,7 @@ double FamilyLikelihoodSeq::CalcSingleFamLikelihood_BA(int i, double freq)
   fam[i].SetFounderPriors_BA(freq);
   fam[i].InitializePartials_BA();
   lk = fam[i].CalculateLikelihood_BA();
-  
+
   return(lk);
 }
 
@@ -234,10 +269,9 @@ double FamilyLikelihoodSeq::CalcSingleFamLikelihood_BA(int i, double freq)
 double FamilyLikelihoodSeq::CalcSingleFamLikelihood_denovo(int i, double freq)
 {
   double lk=1.0;
-  fam[i].SetGenotypeMutationModel(&gM);
-  fam[i].SetTransmissionMatrix_denovo();
+
   fam[i].SetAlleles(allele1,allele2);
-  fam[i].SetFounderPriors(freq);
+  fam[i].SetFounderPriors(freq); //Note: we still assume bi-allelic variants founders
   fam[i].InitializePartials();
   lk = fam[i].CalculateLikelihood_denovo();
 
@@ -267,7 +301,6 @@ void FamilyLikelihoodSeq::FillPenetrance()
 
 void  FamilyLikelihoodSeq::FillPenetrance(FamilyLikelihoodES* famlk, PedigreeGLF* pedGLF)
 {
-  famlk->penetrances.Dimension(famlk->famSize, 10);
   famlk->penetrances.Zero();
   for(int i=0; i<famlk->famSize;i++)
     { 
@@ -281,6 +314,14 @@ void  FamilyLikelihoodSeq::FillPenetrance(FamilyLikelihoodES* famlk, PedigreeGLF
    for(int j=0; j<10; j++)
 	  famlk->penetrances[i][j] = pedGLF->glf[famlk->famIdx][i].GetLikelihoods(pedGLF->currentPos)[j];
     }
+}
+
+void  FamilyLikelihoodSeq::FillPenetrance(FamilyLikelihoodSeq& sourceFamLk)
+{
+  for(int f=0; f<nFam; f++)
+   for(int i=0; i<fam[f].famSize;i++)
+    for(int j=0; j<10; j++)
+	  fam[f].penetrances[i][j] = sourceFamLk.fam[f].penetrances[i][j];
 }
 
 void FamilyLikelihoodSeq::FillZeroPenetrance(FamilyLikelihoodES *famlk, PedigreeGLF *pedGLF, int person, int genoIdx)
@@ -316,6 +357,8 @@ void FamilyLikelihoodSeq::FillZeroPenetrance(FamilyLikelihoodES *famlk, Pedigree
 
 void FamilyLikelihoodSeq::SetNonAutosomeFlags(bool x, bool y, bool mt)
 {
+ if(x && y || x && mt || y && mt) error("Only one non-autosomal chrom can be specified\n");
+
  isChrX = x; isChrY=y; isMT=mt;
   for(int i=0; i<nFam; i++) 
   {

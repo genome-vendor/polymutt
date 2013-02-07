@@ -19,7 +19,7 @@
 //Def of NucFamGenotypeLikelihood class
 class NucFamGenotypeLikelihood : public ScalarMinimizer
 {
-private:
+protected:
   bool vcf;
 public:
   int refBase;
@@ -30,9 +30,12 @@ public:
   int           nFam;
   int           nPerson;
   int 	        nFounders;
+  std::vector<int> backupFounderCount;
   double        prior;
+  double        prior_indel;
   double        priorFreq;
   double        theta;
+  double        theta_indel;
   double        varPostProb;
   double        polyQual;
   int           totalDepth;
@@ -51,9 +54,11 @@ public:
   double ***    postProb;
   double **     dosage;
   int **        bestGenoIdx;
+  int **        bestGenoQual;
   String **     bestGenoLabel;
   bool          usePriorFreq;
   bool          useMleFreq;
+  bool		isIndel;
   CmdLinePar *  par;
   std::vector<double> varllk;
   std::vector<double> varllk_noprior;
@@ -62,11 +67,13 @@ public:
   GenotypeMutationModel gM;
   bool denovo_mono;
   double denovoLR;
-  double AB;  
+  double AB;
+  int AC;
   int sex;
   bool isChrX;
   bool isChrY;
   bool isMT;
+  bool isMono;
 public:
   NucFamGenotypeLikelihood();
   NucFamGenotypeLikelihood(PedigreeGLF *);
@@ -91,11 +98,15 @@ public:
   void   SetParentPriorSingleTrio();
   void   SetParentPriorSingleTrio_denovo(double);
   void   SetTheta(double);
+  void   SetTheta_indel(double);
   void   SetPolyPrior();
+  void   SetPolyPrior_indel();
   void   SetPolyPrior_chrX();
   void   SetPolyPrior_chrY();
   void   SetPolyPrior_MT();
   double GetPolyPrior();
+  double GetPolyPrior_unr();
+  double GetPolyPrior_indel();
   double GetPriorFreq();
   void   SetMleFreqFlag(bool);
   void   SetPriorFreqFlag(bool);
@@ -138,6 +149,7 @@ public:
   void   CalcParentMarginal_leaveone(int, double, int); // Marginalizing all kids except the ith
   void   CalcParentMarginalSingleTrio();
   void   CalcPostProb(double);
+  void   CalcPostProb_mono(double);
   void   CalcPostProb_SingleNucFam(int, double);
   void   CalcPostProb_SingleNucFam_denovo(int, double);
   void   CalcPostProb_SinglePerson(int, int, double);  
@@ -150,9 +162,11 @@ public:
   String GetBestGenoLabel_denovo(int best);
   String GetBestGenoLabel_vcfv4(int best);
   double CalcDosage(int i,int j);
+  void CalcGQ();
   void   toOriginalLikelihood(int loglk11, int loglk12, int loglk22, double *lk11, double *lk12, double *lk22);  double toOriginalLikelihood(int loglk); 
   int    CalcVarPosterior(int n);
   int    CalcMaxLogLkIdx(std::vector<double> &loglk, int n);
+  int    CalcMaxLogLkAlt(std::vector<double> &loglk, int, int n);
   double CalcSum(std::vector<double> &ratio);
   void CalculateAB(double freq);
   void   OutputVCF(FILE *);

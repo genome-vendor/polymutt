@@ -10,6 +10,7 @@ int PedigreeGlobals::traitCount = 0;
 int PedigreeGlobals::affectionCount = 0;
 int PedigreeGlobals::covariateCount = 0;
 int PedigreeGlobals::markerCount = 0;
+int PedigreeGlobals::stringCount = 0;
 
 // If this value isn't set, all X chromosome data will be rejected
 bool PedigreeGlobals::chromosomeX = false;
@@ -19,10 +20,12 @@ StringArray   PedigreeGlobals::traitNames;
 StringArray   PedigreeGlobals::markerNames;
 StringArray   PedigreeGlobals::covariateNames;
 StringArray   PedigreeGlobals::affectionNames;
+StringArray   PedigreeGlobals::stringNames;
 StringIntHash PedigreeGlobals::markerLookup;
 StringIntHash PedigreeGlobals::traitLookup;
 StringIntHash PedigreeGlobals::affectionLookup;
 StringIntHash PedigreeGlobals::covariateLookup;
+StringIntHash PedigreeGlobals::stringLookup;
 
 int PedigreeGlobals::markerInfoCount = 0;
 int PedigreeGlobals::markerInfoSize = 0;
@@ -145,6 +148,17 @@ int PedigreeGlobals::GetCovariateID(const char * name)
    covariateNames.Add(name);
    covariateLookup.SetInteger(name, covariateCount);
    return covariateCount++;
+   }
+
+int PedigreeGlobals::GetStringID(const char * name)
+   {
+   int idx = stringLookup.Integer(name);
+
+   if (idx != -1) return idx;
+
+   stringNames.Add(name);
+   stringLookup.SetInteger(name, stringCount);
+   return stringCount++;
    }
 
 int PedigreeGlobals::GetMarkerID(const char * name)

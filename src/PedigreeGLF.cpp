@@ -61,8 +61,11 @@ PedigreeGLF::PedigreeGLF()
   ped = NULL;
   glf = NULL;
   nonNULLglf = NULL;
+  nonNullIndex_i = 0;
+  nonNullIndex_j = 0;
   maleFounders=0;
   femaleFounders=0;
+  isVCFInput = false;
 }
 
 PedigreeGLF::PedigreeGLF(Pedigree * ped)
@@ -72,6 +75,7 @@ PedigreeGLF::PedigreeGLF(Pedigree * ped)
 
 PedigreeGLF::~PedigreeGLF()
 {
+  if(glf!=NULL)
   for(int i=0; i<nFam; i++)
     delete [] glf[i]; 
 }
@@ -91,7 +95,11 @@ int PedigreeGLF::GetPersonCount()
 
 void PedigreeGLF::GetSexes()
 {
+ maleFounders=0;
+ femaleFounders=0;
+
  sexes.resize(nFam);
+
  for(int i=0; i<nFam; i++)
  {
   sexes[i].resize(ped->families[i]->count);
@@ -110,10 +118,14 @@ void PedigreeGLF::SetPedGLF(Pedigree * pedpt)
 {
   int nValidGLF = 0;
   ped = pedpt;
+
   InitializeGLFHandler(ped);
+  GetSexes();
+
+  if(isVCFInput) return;
 
   for(int i=0; i<ped->familyCount;i++) //iterate all families 
-    {     
+    {
       nValidGLF = 0; 
       for(int j=0; j<ped->families[i]->count;j++) // iterate all members in a family
         {
@@ -132,7 +144,15 @@ void PedigreeGLF::SetPedGLF(Pedigree * pedpt)
           String glfFileName = * ((String*)((*glfMap).Object(glfFileKey)));
 
           bool flag = glf[i][j].Open(glfFileName.c_str()); 	 
-	  if(nonNULLglf==NULL && flag) nonNULLglf = &glf[i][j]; 
+
+	  if(nonNULLglf==NULL && flag) { 
+		nonNULLglf = &glf[i][j];
+		nonNullIndex_i = i;
+		nonNullIndex_j = j;
+		Person *p = ped->persons[ped->families[i]->path[j]];
+		nonNullPID = p->pid;
+	  }
+
           if(flag==false) 
 	    error("GLF file %s can  not be opened!\n", glfFileName.c_str());
 	  nValidGLF++;
@@ -140,9 +160,6 @@ void PedigreeGLF::SetPedGLF(Pedigree * pedpt)
 	if(nValidGLF==0)
 		fprintf(stderr, "WARNING: No GLF files provided for family %s\n", ped->families[i]->famid.c_str());
     }
-  maleFounders=0;
-  femaleFounders=0;
-  GetSexes();
 }
 
 void PedigreeGLF::SetGLFMap(StringMap * map)
@@ -163,7 +180,9 @@ void PedigreeGLF::InitializeGLFHandler(Pedigree * ped)
     int tmp = ped->families[i]->founders;
     nFounders += tmp;
   }
-  
+
+ if(isVCFInput) return;
+
   if(glf!=NULL) delete [] glf;
   glf = new glfHandler * [nFam];
   for(int i=0; i<nFam; i++) {
@@ -180,14 +199,23 @@ bool PedigreeGLF::Move2NextSection()
   bool flag = false; 
   for(int i=0; i<nFam; i++)
     {
-
       for(int j=0; j<ped->families[i]->count; j++)
         { 
 	  if(glf[i][j].handle==NULL) continue;
+	  if(glf[i][j].isStub) continue;
           flag = glf[i][j].NextSection(); 
+	  if(glf[i][j].maxPosition!=nonNULLglf->maxPosition || glf[i][j].label !=nonNULLglf->label)
+	   {
+		Person *p = ped->persons[ped->families[i]->path[j]];
+        	String pid = p->pid;
+	   error("GLF files are not compatible:\n\tFile of person %s has section %s with %d entries ...\n\tFile of person %s has section %s with %d entries ...\n",
+		nonNullPID.c_str(), glf[nonNullIndex_i][nonNullIndex_j].label.c_str(), 
+		glf[nonNullIndex_i][nonNullIndex_j].maxPosition, pid.c_str(), glf[i][j].label.c_str(), glf[i][j].maxPosition);
+	  }
           if(!flag) return(flag);
         }
     }
+  currentPos = 0;
   return(flag);
 }
 
@@ -196,7 +224,7 @@ bool PedigreeGLF::CheckSectionLabels()
   for(int i=0; i<nFam; i++)
     {
       for(int j=0; j<ped->families[i]->count; j++)
-	if(glf[i][j].label.IsEmpty() || strchr(WHITESPACE,glf[i][j].label[0])!=NULL ) return(false);
+	if(glf[i][j].handle!=NULL && ( glf[i][j].label.IsEmpty() || strchr(WHITESPACE,glf[i][j].label[0])!=NULL) ) return(false);
     }
    return(true);
 }
@@ -253,6 +281,16 @@ bool PedigreeGLF::Move2NextEntry()
 
 bool PedigreeGLF::Move2NextBaseEntry()
 {
+         if (currentPos > 0)
+            {
+            // Check whether we have reached the end of the current chromosome
+            bool done = false;
+  for(int i=0; i<nFam; i++)
+      for(int j=0; j<ped->families[i]->count; j++)
+	if (glf[i][j].handle!=NULL && glf[i][j].data.recordType == 0)
+            return(false);
+    }
+
   bool flag = true;
   for(int i=0; i<nFam; i++)
     {
