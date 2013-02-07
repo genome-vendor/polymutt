@@ -6,7 +6,7 @@ CXX_FLAGS = -O0 -ggdb -I.. -I../../libsrc -I../../base -I../../third/tabix/ -I..
  ../../libVcf/lib-dbg-vcf.a \
  ../../base/lib-dbg-base.a ../../libsrc/lib-dbg-goncalo.a -lz -lbz2 \
 ../../third/tabix/libtabix.a \
-../../third/pcre/lib/libpcreposix.a ../../third/pcre/lib/libpcre.a
+ -lpcreposix -lpcre
 
 define BUILD_each
   TAR := $(1)

@@ -1,5 +1,5 @@
 ##fileformat=VCFv4.0
-##fileDate=Mon Oct  8 13:04:17 2012
+##fileDate=Thu Feb  7 12:46:13 2013
 ##command=../bin/polymutt -p test.ped -d test.dat -g test.gif --nthreads 4 --out_vcf test.denovo.out.vcf --denovo --rate_denovo 1.5e-07 
 ##minMapQuality=0.000000
 ##minTotalDepth=0
@@ -10,7 +10,7 @@
 ##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Read Depth">
 ##INFO=<ID=MQ,Number=1,Type=Float,Description="Average Map Quality">
 ##INFO=<ID=AF,Number=.,Type=Float,Description="Reference Allele Frequency">
-##INFO=<ID=DQ,Number=1,Type=Float, Description="De Novo Mutation Quality">
+##INFO=<ID=DQ,Number=1,Type=Float,Description="De Novo Mutation Quality">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">

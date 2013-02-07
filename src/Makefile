@@ -12,7 +12,7 @@ OBJ = $(SOURCE:.cpp=.o)
 TARGET = polymutt
 LIB = ../core/libcore.a ../base/lib-base.a ../libVcf/lib-vcf.a
 TABIX_LIB = ../third/tabix/libtabix.a
-PCRE_LIB = ../third/pcre/lib/libpcre.a
+PCRE_LIB = -lpcre
 
 all: $(TARGET)
 $(TARGET): $(OBJ)
