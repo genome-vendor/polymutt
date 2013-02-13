@@ -1,3 +1,9 @@
+polymutt0.13 (0.13-2) unstable; urgency=low
+
+  * re-enable chr2process in polymutt0.13
+
+ -- Gabriel Sanderson <gsanders@genome.wustl.edu>  Wed, 13 Feb 2013 15:45:00 -0600
+
 polymutt0.13 (0.13-1) unstable; urgency=low
 
   * update to upstream version 0.13
